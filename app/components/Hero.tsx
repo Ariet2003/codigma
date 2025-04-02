@@ -29,13 +29,13 @@ export function Hero() {
           <div className="flex justify-center flex-col md:flex-row gap-4 mt-4">
             <Link
               href={"/api/auth/signin"}
-              className="border-[1px] border-gray-600 px-6 py-3 rounded-lg bg-[#4E7AFF] hover-lift hover-glow transition-all font-medium shadow-lg hover:shadow-[#4E7AFF]/20"
+              className="px-6 py-3 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105"
             >
               Начать решать{" "}
             </Link>
             <Link
               href={"/#features"}
-              className="border-[1px] border-gray-600 px-6 py-3 rounded-lg hover-lift transition-all font-medium hover:bg-gray-50 dark:hover:bg-gray-800"
+              className="px-6 py-3 rounded-lg border border-[#4E7AFF] text-[#4E7AFF] dark:text-white font-medium transition-all hover:bg-[#4E7AFF]/10 hover:scale-105"
             >
               Посмотреть возможности
             </Link>

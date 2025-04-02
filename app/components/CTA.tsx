@@ -16,7 +16,7 @@ export function CTA() {
           </div>
           <Link
             href="/api/auth/signin"
-            className="p-2 w-full md:w-auto border-[1px] rounded-md bg-[#4E7AFF] text-center hover-lift hover-glow transition-all"
+            className="px-6 py-3 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105 text-center"
           >
             Присоединяйтесь сейчас
           </Link>

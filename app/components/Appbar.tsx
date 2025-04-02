@@ -65,12 +65,13 @@ export function Appbar({ className }: { className?: string }) {
             href={link.href}
             key={index}
             onClick={(e) => handleSmoothScroll(e, link.href)}
-            className={`hover:underline ${
-              pathname === link.href ? "text-primary font-medium" : "text-muted-foreground"
+            className={`text-base font-medium transition-all relative group ${
+              pathname === link.href ? "text-[#4E7AFF]" : "text-gray-600 dark:text-gray-300"
             }`}
             prefetch={false}
           >
             {link.name}
+            <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-[#4E7AFF] transition-all group-hover:w-full"></span>
           </Link>
         ))}
       </nav>
@@ -84,10 +85,17 @@ export function Appbar({ className }: { className?: string }) {
       {!isLoading && !session?.user && (
         <div className="flex items-center gap-4">
           <ModeToggle />
-          <Button variant="outline" onClick={() => signIn()}>
+          <Button 
+            variant="outline" 
+            onClick={() => signIn()}
+            className="px-6 py-2 rounded-lg border border-[#4E7AFF] text-[#4E7AFF] dark:text-white font-medium transition-all hover:bg-[#4E7AFF]/10 hover:scale-105"
+          >
             Войти
           </Button>
-          <Button onClick={() => signIn()}>
+          <Button 
+            onClick={() => signIn()}
+            className="px-6 py-2 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105"
+          >
             Регистрация
           </Button>
         </div>
