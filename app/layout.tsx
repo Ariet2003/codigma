@@ -2,10 +2,12 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { Appbar } from './components/Appbar';
 import { Footer } from './components/Footer';
-import { ThemeProvider } from './providers/theme-provider';
+import { ThemeProvider } from '../components/theme-provider';
 import { SessionProvider } from './providers/session-provider';
-import { Toaster } from "@/components/ui/toaster"
+import { Toaster } from "sonner";
 import { Inter } from "next/font/google";
+
+const inter = Inter({ subsets: ["latin", "cyrillic"] });
 
 export const metadata: Metadata = {
   title: 'Codigma - Платформа для соревнований по программированию',
@@ -19,7 +21,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ru" suppressHydrationWarning>
-      <body>
+      <body className={inter.className}>
         <SessionProvider>
           <ThemeProvider
             attribute="class"
@@ -27,28 +29,7 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            <Toaster
-              position="top-center"
-              toastOptions={{
-                style: {
-                  background: "hsl(var(--card))",
-                  color: "hsl(var(--foreground))",
-                  border: "1px solid hsl(var(--border))",
-                },
-                success: {
-                  iconTheme: {
-                    primary: "hsl(var(--primary))",
-                    secondary: "hsl(var(--card))",
-                  },
-                },
-                error: {
-                  iconTheme: {
-                    primary: "hsl(var(--destructive))",
-                    secondary: "hsl(var(--card))",
-                  },
-                },
-              }}
-            />
+            <Toaster richColors position="top-center" />
             <div className="min-h-screen flex flex-col">
               <Appbar />
               <main className="flex-1 mt-[60px] container mx-auto px-4">{children}</main>

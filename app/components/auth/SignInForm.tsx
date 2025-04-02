@@ -87,15 +87,22 @@ export function SignInForm({ className, ...props }: UserAuthFormProps) {
               />
             </div>
           </div>
-          <Button 
+          <Button
+            type="submit"
+            className="w-full"
             disabled={isLoading}
-            className="h-11 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-[0_0_0_3px_rgba(78,122,255,0.2)]"
           >
-            {isLoading && (
-              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
-            )}
-            Войти
+            {isLoading ? "Вход..." : "Войти"}
           </Button>
+
+          <div className="text-center text-sm">
+            <a
+              href="/auth/forgot-password"
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Забыли пароль?
+            </a>
+          </div>
         </div>
       </form>
       <div className="relative">

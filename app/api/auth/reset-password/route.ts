@@ -1,102 +1,50 @@
+import { db } from "@/lib/db";
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
-import { sendResetPasswordEmail } from "@/lib/email";
 
 export async function POST(req: Request) {
   try {
-    const { email } = await req.json();
+    const body = await req.json();
+    const { email, code, password } = body;
 
-    if (!email) {
-      return NextResponse.json(
-        { error: "Email не предоставлен" },
-        { status: 400 }
-      );
+    if (!email || !code || !password) {
+      return new NextResponse("Все поля обязательны", { status: 400 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email },
+    const user = await db.user.findUnique({
+      where: { email }
     });
 
     if (!user) {
-      return NextResponse.json(
-        { error: "Пользователь не найден" },
-        { status: 404 }
-      );
+      return new NextResponse("Пользователь не найден", { status: 404 });
     }
 
-    const resetToken = randomBytes(32).toString("hex");
-    const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 час
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        resetPasswordToken: resetToken,
-        resetPasswordExpires: resetExpires,
-      },
-    });
-
-    await sendResetPasswordEmail(email, resetToken);
-
-    return NextResponse.json({
-      message: "Инструкции по сбросу пароля отправлены на email",
-    });
-  } catch (error) {
-    console.error("Reset password request error:", error);
-    return NextResponse.json(
-      { error: "Ошибка при запросе сброса пароля" },
-      { status: 500 }
-    );
-  }
-}
-
-export async function PUT(req: Request) {
-  try {
-    const { token, password } = await req.json();
-
-    if (!token || !password) {
-      return NextResponse.json(
-        { error: "Токен и новый пароль обязательны" },
-        { status: 400 }
-      );
+    // Проверяем код сброса пароля
+    if (user.resetToken !== code) {
+      return new NextResponse("Неверный код", { status: 400 });
     }
 
-    const user = await prisma.user.findFirst({
-      where: {
-        resetPasswordToken: token,
-        resetPasswordExpires: {
-          gt: new Date(),
-        },
-      },
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "Недействительный или просроченный токен" },
-        { status: 400 }
-      );
+    // Проверяем срок действия кода
+    if (!user.resetTokenExpires || user.resetTokenExpires < new Date()) {
+      return new NextResponse("Срок действия кода истек", { status: 400 });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 12);
+    // Хешируем новый пароль
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    await prisma.user.update({
+    // Обновляем пароль и очищаем токены сброса
+    await db.user.update({
       where: { id: user.id },
       data: {
         password: hashedPassword,
-        resetPasswordToken: null,
-        resetPasswordExpires: null,
-      },
+        resetToken: null,
+        resetTokenExpires: null,
+      }
     });
 
-    return NextResponse.json({
-      message: "Пароль успешно изменен",
-    });
+    return new NextResponse("Пароль успешно изменен", { status: 200 });
   } catch (error) {
-    console.error("Reset password error:", error);
-    return NextResponse.json(
-      { error: "Ошибка при сбросе пароля" },
-      { status: 500 }
-    );
+    console.error("RESET_PASSWORD_ERROR", error);
+    return new NextResponse("Внутренняя ошибка сервера", { status: 500 });
   }
 } 
