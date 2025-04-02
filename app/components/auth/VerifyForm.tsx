@@ -2,13 +2,14 @@
 
 import { useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { toast } from "react-hot-toast"
 import { Button } from "@/components/ui/button"
-import { toast } from "@/hooks/use-toast"
 import { signIn } from "next-auth/react"
 
 export function VerifyForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const email = searchParams.get("email")
   const [isLoading, setIsLoading] = useState(false)
   const [verificationCode, setVerificationCode] = useState(["", "", "", "", "", ""])
 
@@ -17,7 +18,6 @@ export function VerifyForm() {
 
     const newCode = [...verificationCode]
     newCode[index] = value
-
     setVerificationCode(newCode)
 
     // Автоматически переходим к следующему полю
@@ -35,76 +35,75 @@ export function VerifyForm() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
+    
+    if (!email) {
+      toast.error("Email не найден")
+      return
+    }
+
+    const code = verificationCode.join("")
+    if (code.length !== 6) {
+      toast.error("Введите код полностью")
+      return
+    }
 
     try {
-      const code = verificationCode.join("")
-      const email = searchParams.get("email")
-
-      if (!email) {
-        throw new Error("Email не найден")
-      }
+      setIsLoading(true)
 
       const response = await fetch("/api/auth/verify", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, code }),
+        body: JSON.stringify({
+          email,
+          code,
+        }),
       })
 
-      const data = await response.json()
+      const data = await response.text()
 
       if (!response.ok) {
-        throw new Error(data.message)
+        throw new Error(data)
       }
 
-      toast({
-        title: "Успешно",
-        description: "Email подтвержден",
-      })
+      toast.success("Email подтвержден")
 
-      // Автоматический вход после верификации
-      const encodedPassword = localStorage.getItem(`temp_password_${email}`);
+      // Получаем сохраненный пароль
+      const encodedPassword = localStorage.getItem(`temp_password_${email}`)
       if (!encodedPassword) {
-        router.push("/auth/signin");
-        return;
+        router.push("/auth/signin")
+        return
       }
 
-      const password = atob(encodedPassword); // Декодируем пароль из base64
+      const password = atob(encodedPassword) // Декодируем пароль из base64
+      
+      // Выполняем автоматический вход
       const signInResult = await signIn("credentials", {
         email,
         password,
         redirect: false,
-      });
+      })
 
       if (signInResult?.error) {
-        console.error("Ошибка входа:", signInResult.error);
-        toast({
-          variant: "destructive",
-          title: "Ошибка",
-          description: "Не удалось выполнить вход автоматически",
-        });
-        router.push("/auth/signin");
+        console.error("Ошибка входа:", signInResult.error)
+        toast.error("Не удалось выполнить вход автоматически")
+        router.push("/auth/signin")
       } else {
-        localStorage.removeItem(`temp_password_${email}`);
-        router.push("/dashboard");
+        localStorage.removeItem(`temp_password_${email}`)
+        router.push("/dashboard")
       }
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Ошибка",
-        description: error.message || "Произошла ошибка при верификации",
-      })
+      toast.error(error.message || "Что-то пошло не так")
+    } finally {
+      setIsLoading(false)
     }
-
-    setIsLoading(false)
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={onSubmit} className="space-y-6">
       <div className="flex justify-between gap-2">
         {verificationCode.map((digit, index) => (
           <input
@@ -123,11 +122,12 @@ export function VerifyForm() {
           />
         ))}
       </div>
-      <Button className="w-full" disabled={isLoading}>
-        {isLoading && (
-          <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        )}
-        Подтвердить
+      <Button
+        type="submit"
+        className="w-full"
+        disabled={isLoading}
+      >
+        {isLoading ? "Проверка..." : "Подтвердить"}
       </Button>
     </form>
   )

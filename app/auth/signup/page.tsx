@@ -8,37 +8,37 @@ export const metadata: Metadata = {
 
 export default function SignUpPage() {
   return (
-    <div className="container relative h-screen flex-col items-center justify-center grid lg:max-w-none lg:grid-cols-2 lg:px-0">
-      <div className="relative hidden h-full flex-col bg-muted p-10 text-white lg:flex dark:border-r">
-        <div className="absolute inset-0 bg-[#4E7AFF]" />
-        <div className="relative z-20 flex items-center text-lg font-medium">
-          <img src="/logo.svg" alt="Codigma" className="h-8" />
-        </div>
-        <div className="relative z-20 mt-auto">
-          <blockquote className="space-y-2">
-            <p className="text-lg">
-              Присоединяйтесь к сообществу программистов и начните свой путь к совершенству.
-            </p>
-            <footer className="text-sm">Команда Codigma</footer>
-          </blockquote>
-        </div>
-      </div>
-      <div className="lg:p-8">
-        <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
-          <div className="flex flex-col space-y-2 text-center">
-            <h1 className="text-2xl font-semibold tracking-tight">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-background">
+      <div className="w-full max-w-md">
+        <div className="bg-card/50 p-8 rounded-3xl shadow-2xl border border-border/50 backdrop-blur-xl">
+          <div className="flex flex-col items-center space-y-2 text-center mb-8">
+            <div className="w-40 h-20 relative flex items-center justify-center">
+              <img
+                src="/Codigma-logo-dark.svg"
+                alt="Codigma"
+                className="hidden dark:block w-full h-auto transition-opacity duration-300"
+              />
+              <img
+                src="/Codigma-logo-light.svg"
+                alt="Codigma"
+                className="block dark:hidden w-full h-auto transition-opacity duration-300"
+              />
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
               Создайте аккаунт
             </h1>
-            <p className="text-sm text-muted-foreground">
-              Заполните форму ниже, чтобы создать аккаунт
+            <p className="text-sm text-muted-foreground max-w-sm">
+              Присоединяйтесь к сообществу Codigma
             </p>
           </div>
+
           <SignUpForm />
-          <p className="px-8 text-center text-sm text-muted-foreground">
+
+          <p className="text-center text-sm text-muted-foreground mt-8">
             Уже есть аккаунт?{" "}
             <a
               href="/auth/signin"
-              className="underline underline-offset-4 hover:text-primary"
+              className="font-medium text-primary hover:text-primary/90 transition-colors hover:underline"
             >
               Войти
             </a>

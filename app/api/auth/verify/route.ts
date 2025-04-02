@@ -1,71 +1,52 @@
-import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
-    const { email, code } = await req.json();
+    const body = await req.json();
+    const { email, code } = body;
 
     if (!email || !code) {
-      return NextResponse.json(
-        { message: "Email и код подтверждения обязательны" },
-        { status: 400 }
-      );
+      return new NextResponse("Email и код обязательны", { status: 400 });
     }
 
+    // Проверяем существование пользователя
     const user = await db.user.findUnique({
-      where: { email },
+      where: { email }
     });
 
     if (!user) {
-      return NextResponse.json(
-        { message: "Пользователь не найден" },
-        { status: 404 }
-      );
+      return new NextResponse("Пользователь не найден", { status: 404 });
     }
 
+    // Если email уже подтвержден
     if (user.emailVerified) {
-      return NextResponse.json(
-        { message: "Email уже подтвержден" },
-        { status: 400 }
-      );
+      return new NextResponse("Email уже подтвержден", { status: 400 });
     }
 
-    if (!user.verificationToken || !user.verificationTokenExpires) {
-      return NextResponse.json(
-        { message: "Код подтверждения недействителен" },
-        { status: 400 }
-      );
-    }
-
-    if (user.verificationTokenExpires < new Date()) {
-      return NextResponse.json(
-        { message: "Срок действия кода истек" },
-        { status: 400 }
-      );
-    }
-
+    // Проверяем код верификации
     if (user.verificationToken !== code) {
-      return NextResponse.json(
-        { message: "Неверный код подтверждения" },
-        { status: 400 }
-      );
+      return new NextResponse("Неверный код подтверждения", { status: 400 });
     }
 
+    // Проверяем срок действия кода
+    if (!user.verificationTokenExpires || user.verificationTokenExpires < new Date()) {
+      return new NextResponse("Срок действия кода истек", { status: 400 });
+    }
+
+    // Обновляем статус верификации пользователя
     await db.user.update({
       where: { id: user.id },
-      data: {
+      data: { 
         emailVerified: new Date(),
         verificationToken: null,
-        verificationTokenExpires: null,
-      },
+        verificationTokenExpires: null
+      }
     });
 
-    return NextResponse.json({ message: "Email успешно подтвержден" });
+    return new NextResponse("Email подтвержден", { status: 200 });
   } catch (error) {
-    console.error("Ошибка при верификации:", error);
-    return NextResponse.json(
-      { message: "Произошла ошибка при верификации" },
-      { status: 500 }
-    );
+    console.error("VERIFICATION_ERROR", error);
+    return new NextResponse("Внутренняя ошибка сервера", { status: 500 });
   }
 } 

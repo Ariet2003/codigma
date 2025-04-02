@@ -30,29 +30,23 @@ const handler = NextAuth({
         });
 
         if (!user) {
-          throw new Error("Пользователь не найден");
-        }
-
-        if (!user.password) {
-          throw new Error("GOOGLE_ACCOUNT");
-        }
-
-        const isValid = await compare(credentials.password, user.password);
-
-        if (!isValid) {
-          throw new Error("Неверный пароль");
+          throw new Error("Неверный email или пароль");
         }
 
         if (!user.emailVerified) {
-          throw new Error("EMAIL_NOT_VERIFIED");
+          throw new Error("Email not verified");
         }
 
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          emailVerified: user.emailVerified,
-        };
+        const isPasswordValid = await compare(
+          credentials.password,
+          user.password!
+        );
+
+        if (!isPasswordValid) {
+          throw new Error("Неверный email или пароль");
+        }
+
+        return user;
       },
     }),
   ],
