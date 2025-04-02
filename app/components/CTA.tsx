@@ -15,7 +15,7 @@ export function CTA() {
             Codigma — это ваша платформа для роста и достижения целей.
           </div>
           <Link
-            href="/api/auth/signin"
+            href="/auth/signup"
             className="px-6 py-3 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105 text-center"
           >
             Присоединяйтесь сейчас

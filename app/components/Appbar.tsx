@@ -85,19 +85,21 @@ export function Appbar({ className }: { className?: string }) {
       {!isLoading && !session?.user && (
         <div className="flex items-center gap-4">
           <ModeToggle />
-          <Button 
-            variant="outline" 
-            onClick={() => signIn()}
-            className="px-6 py-2 rounded-lg border border-[#4E7AFF] text-[#4E7AFF] dark:text-white font-medium transition-all hover:bg-[#4E7AFF]/10 hover:scale-105"
-          >
-            Войти
-          </Button>
-          <Button 
-            onClick={() => signIn()}
-            className="px-6 py-2 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105"
-          >
-            Регистрация
-          </Button>
+          <Link href="/auth/signin">
+            <Button 
+              variant="outline"
+              className="px-6 py-2 rounded-lg border border-[#4E7AFF] text-[#4E7AFF] dark:text-white font-medium transition-all hover:bg-[#4E7AFF]/10 hover:scale-105"
+            >
+              Войти
+            </Button>
+          </Link>
+          <Link href="/auth/signup">
+            <Button 
+              className="px-6 py-2 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105"
+            >
+              Регистрация
+            </Button>
+          </Link>
         </div>
       )}
 

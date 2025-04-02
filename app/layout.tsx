@@ -4,6 +4,7 @@ import { Appbar } from './components/Appbar';
 import { Footer } from './components/Footer';
 import { ThemeProvider } from './providers/theme-provider';
 import { SessionProvider } from './providers/session-provider';
+import { Toaster } from "@/components/ui/toaster"
 
 export const metadata: Metadata = {
   title: 'Codigma - Платформа для соревнований по программированию',
@@ -32,6 +33,7 @@ export default function RootLayout({
             </div>
           </ThemeProvider>
         </SessionProvider>
+        <Toaster />
       </body>
     </html>
   );

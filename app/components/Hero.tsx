@@ -28,13 +28,13 @@ export function Hero() {
           </div>
           <div className="flex justify-center flex-col md:flex-row gap-4 mt-4">
             <Link
-              href={"/api/auth/signin"}
+              href="/auth/signin"
               className="px-6 py-3 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105"
             >
               Начать решать{" "}
             </Link>
             <Link
-              href={"/#features"}
+              href="/#features"
               className="px-6 py-3 rounded-lg border border-[#4E7AFF] text-[#4E7AFF] dark:text-white font-medium transition-all hover:bg-[#4E7AFF]/10 hover:scale-105"
             >
               Посмотреть возможности
