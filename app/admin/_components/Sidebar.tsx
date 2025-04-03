@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
@@ -9,10 +10,12 @@ import {
   Trophy,
   FileText,
   Star,
-  Plus,
+  PlusCircle,
   Users,
   Settings,
-  LogOut
+  LogOut,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 
 const navigation = [
@@ -39,12 +42,12 @@ const navigation = [
   {
     name: "Создать хакатон",
     href: "/admin/hackathons/create",
-    icon: Plus
+    icon: PlusCircle
   },
   {
     name: "Создать задачу",
     href: "/admin/tasks/create",
-    icon: Plus
+    icon: PlusCircle
   },
   {
     name: "Пользователи",
@@ -61,6 +64,7 @@ const navigation = [
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -77,12 +81,31 @@ export function Sidebar() {
   };
 
   return (
-    <div className="flex h-full w-64 flex-col bg-background border-r">
-      <div className="flex h-14 items-center border-b px-4">
-        <span className="font-semibold">Админ панель</span>
+    <div 
+      className={cn(
+        "flex h-full flex-col bg-background border-r transition-all duration-300",
+        isCollapsed ? "w-[70px]" : "w-[250px]"
+      )}
+    >
+      <div className="flex h-14 items-center justify-between border-b px-4">
+        {!isCollapsed && (
+          <span className="font-semibold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+            Админ панель
+          </span>
+        )}
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="rounded-lg p-1.5 hover:bg-muted transition-colors"
+        >
+          {isCollapsed ? (
+            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+          ) : (
+            <ChevronLeft className="h-5 w-5 text-muted-foreground" />
+          )}
+        </button>
       </div>
       
-      <nav className="flex-1 space-y-1 px-2 py-4">
+      <nav className="flex-1 space-y-1 p-2">
         {navigation.map((item) => {
           const isActive = pathname === item.href;
           return (
@@ -90,31 +113,34 @@ export function Sidebar() {
               key={item.name}
               href={item.href}
               className={cn(
-                "group flex items-center px-2 py-2 text-sm font-medium rounded-md",
+                "group flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                 isActive
-                  ? "bg-primary text-primary-foreground"
+                  ? "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
+              title={isCollapsed ? item.name : undefined}
             >
-              <item.icon
-                className={cn(
-                  "mr-3 h-5 w-5 flex-shrink-0",
-                  isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
-                )}
-              />
-              {item.name}
+              <item.icon className={cn(
+                "h-5 w-5 flex-shrink-0 transition-colors",
+                isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+              )} />
+              {!isCollapsed && <span>{item.name}</span>}
             </Link>
           );
         })}
       </nav>
 
-      <div className="border-t p-4">
+      <div className="border-t p-2">
         <button
           onClick={handleLogout}
-          className="flex w-full items-center px-2 py-2 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground rounded-md"
+          className={cn(
+            "flex w-full items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors",
+            isCollapsed && "justify-center"
+          )}
+          title={isCollapsed ? "Выйти" : undefined}
         >
-          <LogOut className="mr-3 h-5 w-5" />
-          Выйти
+          <LogOut className="h-5 w-5 flex-shrink-0" />
+          {!isCollapsed && "Выйти"}
         </button>
       </div>
     </div>
