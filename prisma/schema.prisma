@@ -52,6 +52,7 @@ model User {
   verificationTokenExpires DateTime?
   resetToken              String?
   resetTokenExpires       DateTime?
+  role                    Role      @default(USER)
   accounts                Account[]
   sessions                Session[]
 }
@@ -60,12 +61,13 @@ model VerificationToken {
   id        String   @id @default(cuid())
   email     String
   token     String   @unique
+  identifier String  @unique
   expires   DateTime
 
   @@unique([email, token])
 }
 
-enum UserRole {
+enum Role {
   USER
   ADMIN
 }

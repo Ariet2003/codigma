@@ -149,4 +149,45 @@ export async function sendPasswordResetEmail(email: string, token: string) {
     console.error('Ошибка при отправке письма:', error);
     throw error;
   }
+}
+
+export async function sendAdminVerificationEmail(email: string, code: string) {
+  try {
+    const info = await transporter.sendMail({
+      from: `"Codigma" <${process.env.SMTP_USER}>`,
+      to: email,
+      subject: "Подтверждение входа в админ-панель",
+      html: `
+        <div style="background-color: #f9fafb; padding: 40px 0;">
+          <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 32px; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
+            <div style="text-align: center; margin-bottom: 24px;">
+              <div class="logo" style="font-size: 24px; font-weight: bold; color: white; background-color: #2563eb; display: inline-block; padding: 8px 16px; border-radius: 8px;">
+                CODIGMA
+              </div>
+            </div>
+            <h1 style="color: #111827; font-size: 24px; font-weight: 600; margin-bottom: 16px; text-align: center;">
+              Подтверждение входа в админ-панель
+            </h1>
+            <p style="color: #4b5563; font-size: 16px; margin-bottom: 24px; text-align: center;">
+              Для входа в админ-панель используйте следующий код подтверждения:
+            </p>
+            <div style="background-color: #f3f4f6; border-radius: 8px; padding: 16px; margin-bottom: 24px; text-align: center;">
+              <span style="font-size: 32px; font-weight: 600; letter-spacing: 0.5em; color: #111827;">
+                ${code}
+              </span>
+            </div>
+            <p style="color: #6b7280; font-size: 14px; text-align: center;">
+              Код действителен в течение 10 минут. Если вы не пытались войти в админ-панель, проигнорируйте это сообщение.
+            </p>
+          </div>
+        </div>
+      `
+    });
+
+    console.log("Admin verification email sent to:", email, "Message ID:", info.messageId);
+    return info;
+  } catch (error) {
+    console.error("Error sending admin verification email:", error);
+    throw error;
+  }
 } 

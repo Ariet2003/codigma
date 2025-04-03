@@ -29,7 +29,18 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            <Toaster richColors position="top-center" />
+            <Toaster 
+              richColors 
+              position="top-center"
+              toastOptions={{
+                style: {
+                  background: "hsl(var(--card))",
+                  color: "hsl(var(--foreground))",
+                  border: "1px solid hsl(var(--border))",
+                },
+                className: "text-sm font-medium",
+              }}
+            />
             <div className="min-h-screen flex flex-col">
               <Appbar />
               <main className="flex-1 mt-[60px] container mx-auto px-4">{children}</main>
