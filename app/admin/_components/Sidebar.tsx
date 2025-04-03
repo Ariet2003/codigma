@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { ModeToggle } from "@/components/ui/mode-toggle";
 import {
   LayoutDashboard,
   Trophy,
@@ -93,16 +94,19 @@ export function Sidebar() {
             Админ панель
           </span>
         )}
-        <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="rounded-lg p-1.5 hover:bg-muted transition-colors"
-        >
-          {isCollapsed ? (
-            <ChevronRight className="h-5 w-5 text-muted-foreground" />
-          ) : (
-            <ChevronLeft className="h-5 w-5 text-muted-foreground" />
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <ModeToggle />
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="rounded-lg p-1.5 hover:bg-muted transition-colors"
+          >
+            {isCollapsed ? (
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            ) : (
+              <ChevronLeft className="h-5 w-5 text-muted-foreground" />
+            )}
+          </button>
+        </div>
       </div>
       
       <nav className="flex-1 space-y-1 p-2">
