@@ -23,7 +23,8 @@ import {
   Loader2,
   X,
   Beaker,
-  Sparkles
+  Sparkles,
+  Save
 } from "lucide-react";
 import { generateProblemTemplates } from "../../../lib/codeGenerator";
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -37,10 +38,28 @@ import { rust } from '@codemirror/lang-rust';
 import { java } from '@codemirror/lang-java';
 import { vscodeDark } from '@uiw/codemirror-theme-vscode';
 import { basicLight } from '@uiw/codemirror-theme-basic';
+import { FileCode2 } from "lucide-react";
+
+type TestResult = {
+  tests_count: number;
+  status: number;
+  stderr: string;
+  tokens: string[];
+  correct_tests_count: number;
+  incorrect_test_indexes: number[];
+};
+
+const judge0_language_ids = {
+  cpp: 54,
+  js: 63,
+  rust: 73,
+  java: 62
+};
 
 type TestCase = {
   input: string;
   expected_output: string | number | boolean;
+  isCorrect?: boolean;
 };
 
 type Parameter = {
@@ -74,7 +93,8 @@ const STORAGE_KEYS = {
   testCode: 'create_task_test_code',
   testLanguage: 'create_task_test_language',
   testCount: 'create_task_test_count',
-  testCases: 'create_task_test_cases'
+  testCases: 'create_task_test_cases',
+  testResults: 'create_task_test_results'
 };
 
 export default function CreateTask() {
@@ -104,6 +124,8 @@ export default function CreateTask() {
   const [testCode, setTestCode] = useState<string>("");
   const [testCases, setTestCases] = useState<TestCase[]>([]);
   const [isGeneratingTests, setIsGeneratingTests] = useState(false);
+  const [testResults, setTestResults] = useState<TestResult | null>(null);
+  const [isTestingCases, setIsTestingCases] = useState(false);
 
   // Функции для управления параметрами
   const addInputParam = () => {
@@ -154,6 +176,7 @@ export default function CreateTask() {
       const savedTestLanguage = localStorage.getItem(STORAGE_KEYS.testLanguage);
       const savedTestCount = localStorage.getItem(STORAGE_KEYS.testCount);
       const savedTestCases = localStorage.getItem(STORAGE_KEYS.testCases);
+      const savedTestResults = localStorage.getItem(STORAGE_KEYS.testResults);
 
       if (savedTitle) setTitle(savedTitle);
       if (savedDifficulty) setDifficulty(savedDifficulty);
@@ -168,6 +191,7 @@ export default function CreateTask() {
       if (savedTestLanguage) setTestLanguage(savedTestLanguage);
       if (savedTestCount) setTestCount(Number(savedTestCount));
       if (savedTestCases) setTestCases(JSON.parse(savedTestCases));
+      if (savedTestResults) setTestResults(JSON.parse(savedTestResults));
       
       setIsInitialized(true);
     }
@@ -189,8 +213,9 @@ export default function CreateTask() {
       localStorage.setItem(STORAGE_KEYS.testLanguage, testLanguage);
       localStorage.setItem(STORAGE_KEYS.testCount, testCount.toString());
       localStorage.setItem(STORAGE_KEYS.testCases, JSON.stringify(testCases));
+      localStorage.setItem(STORAGE_KEYS.testResults, JSON.stringify(testResults));
     }
-  }, [title, difficulty, description, showMarkdown, functionName, inputParams, outputParams, codeTemplates, selectedLanguage, testCode, testLanguage, testCount, testCases, isInitialized]);
+  }, [title, difficulty, description, showMarkdown, functionName, inputParams, outputParams, codeTemplates, selectedLanguage, testCode, testLanguage, testCount, testCases, isInitialized, testResults]);
 
   const generateMarkdown = async () => {
     try {
@@ -277,6 +302,7 @@ export default function CreateTask() {
     setTestLanguage("cpp");
     setTestCount(10);
     setTestCases([]);
+    setTestResults(null);
     
     // Очищаем localStorage
     Object.values(STORAGE_KEYS).forEach(key => {
@@ -365,6 +391,8 @@ export default function CreateTask() {
 
   const generateTests = async () => {
     setIsGeneratingTests(true);
+    // Сбрасываем результаты тестов при генерации новых
+    setTestResults(null);
     try {
       const metadata = {
         task_name: title,
@@ -394,11 +422,63 @@ export default function CreateTask() {
 
       const data = await response.json();
       const parsedTests = parseTests(data.tests);
-      setTestCases(parsedTests);
+      // При генерации новых тестов сбрасываем их статус
+      setTestCases(parsedTests.map(test => ({ ...test, isCorrect: undefined })));
     } catch (error) {
       console.error("Ошибка:", error);
     } finally {
       setIsGeneratingTests(false);
+    }
+  };
+
+  const runTestCases = async () => {
+    setIsTestingCases(true);
+    try {
+      const fullTemplate = getFullTemplateForLanguage(testLanguage);
+      const sourceCode = fullTemplate.replace("##USER_CODE_HERE##", testCode);
+
+      const data = {
+        language_id: judge0_language_ids[testLanguage as keyof typeof judge0_language_ids],
+        source_code: sourceCode,
+        testcases: testCases.map(tc => ({
+          stdin: tc.input,
+          expected_output: String(tc.expected_output)
+        }))
+      };
+
+      console.log("Отправляемые данные:", {
+        language_id: data.language_id,
+        source_code_length: data.source_code.length,
+        testcases_count: data.testcases.length,
+        first_test: data.testcases[0]
+      });
+
+      const response = await fetch("/api/judge", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        throw new Error("Ошибка при тестировании");
+      }
+
+      const result: TestResult = await response.json();
+      setTestResults(result);
+
+      // Обновляем состояние тесткейсов с результатами
+      const updatedTestCases = testCases.map((tc, idx) => ({
+        ...tc,
+        isCorrect: !result.incorrect_test_indexes.includes(idx)
+      }));
+      setTestCases(updatedTestCases);
+
+    } catch (error) {
+      console.error("Ошибка:", error);
+    } finally {
+      setIsTestingCases(false);
     }
   };
 
@@ -672,10 +752,11 @@ export default function CreateTask() {
 
             <div className="flex justify-end mt-4">
               <Button 
-                className="px-6 py-3 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105 text-center"
+                className="px-6 py-3 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105 text-center flex items-center gap-2"
                 disabled={!functionName || inputParams.some(p => !p.name || !p.type) || outputParams.some(p => !p.name || !p.type)}
                 onClick={generateTemplates}
               >
+                <FileCode2 className="w-4 h-4" />
                 Создать шаблон
               </Button>
             </div>
@@ -750,7 +831,9 @@ export default function CreateTask() {
                       minHeight="250px"
                       maxHeight="600px"
                       theme={theme === 'dark' ? vscodeDark : basicLight}
-                      onChange={(value) => setTestCode(value)}
+                      onChange={(value) => {
+                        setTestCode(value);
+                      }}
                       extensions={[getLanguageExtension(testLanguage)]}
                       className={`${theme === 'light' ? 'text-[15px]' : 'text-[15px]'}`}
                     />
@@ -823,7 +906,7 @@ export default function CreateTask() {
                   <Button
                     variant="outline"
                     onClick={() => setTestCases([])}
-                    className="px-4 py-2 rounded-lg border border-[#4E7AFF] text-[#4E7AFF] dark:text-white font-medium transition-all hover:bg-[#4E7AFF]/10 hover:scale-105"
+                    className="px-4 py-2 rounded-lg border border-[#4E7AFF] text-[#4E7AFF] dark:text-white font-medium transition-all hover:bg-[#4E7AFF]/10 hover:scale-105 text-center flex items-center gap-2"
                   >
                     Очистить тесты
                   </Button>
@@ -838,7 +921,11 @@ export default function CreateTask() {
                             Входные данные {index + 1}
                           </Label>
                         </div>
-                        <div className="rounded-lg border border-color-[hsl(var(--border))] overflow-hidden">
+                        <div className={`rounded-lg border overflow-hidden ${
+                          testResults && testCase.isCorrect !== undefined ? 
+                            (testCase.isCorrect ? "border-green-500" : "border-red-500") : 
+                            "border-color-[hsl(var(--border))]"
+                        }`}>
                           <Textarea
                             value={testCase.input}
                             onChange={(e) => {
@@ -869,7 +956,11 @@ export default function CreateTask() {
                             <X className="w-4 h-4" />
                           </Button>
                         </div>
-                        <div className="rounded-lg border border-color-[hsl(var(--border))] overflow-hidden">
+                        <div className={`rounded-lg border overflow-hidden ${
+                          testResults && testCase.isCorrect !== undefined ? 
+                            (testCase.isCorrect ? "border-green-500" : "border-red-500") : 
+                            "border-color-[hsl(var(--border))]"
+                        }`}>
                           <Textarea
                             value={String(testCase.expected_output)}
                             onChange={(e) => {
@@ -885,28 +976,56 @@ export default function CreateTask() {
                   ))}
                 </div>
 
-                <div className="flex justify-end gap-4">
-                  <Button
-                    onClick={() => {
-                      setTestCases([
-                        ...testCases,
-                        { input: "", expected_output: "" }
-                      ]);
-                    }}
-                    variant="outline"
-                    className="px-6 py-3 rounded-lg border border-[#4E7AFF] text-[#4E7AFF] dark:text-white font-medium transition-all hover:bg-[#4E7AFF]/10 hover:scale-105 text-center flex items-center gap-2"
-                  >
-                    <PenLine className="w-4 h-4" />
-                    Добавить тесткейс
-                  </Button>
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-4">
+                    <Button
+                      onClick={() => {
+                        // При добавлении нового тесткейса не устанавливаем статус
+                        setTestCases([
+                          ...testCases,
+                          { input: "", expected_output: "", isCorrect: undefined }
+                        ]);
+                      }}
+                      variant="outline"
+                      className="px-6 py-3 rounded-lg border border-[#4E7AFF] text-[#4E7AFF] dark:text-white font-medium transition-all hover:bg-[#4E7AFF]/10 hover:scale-105 text-center flex items-center gap-2"
+                    >
+                      <PenLine className="w-4 h-4" />
+                      Добавить тесткейс
+                    </Button>
 
-                  <Button
-                    onClick={() => {}}
-                    className="px-6 py-3 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105 text-center flex items-center gap-2"
-                  >
-                    <Beaker className="w-4 h-4" />
-                    Тестировать тесткейсы
-                  </Button>
+                    <Button
+                      onClick={runTestCases}
+                      disabled={isTestingCases}
+                      className="px-6 py-3 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105 text-center flex items-center gap-2"
+                    >
+                      {isTestingCases ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Beaker className="w-4 h-4" />
+                      )}
+                      {isTestingCases ? "Тестирование..." : "Тестировать тесткейсы"}
+                    </Button>
+                  </div>
+
+                  {testResults && (
+                    <div className="flex items-center gap-4">
+                      <div className="text-sm">
+                        Правильно: <span className="font-bold text-green-500">{testResults.correct_tests_count}</span> из <span className="font-bold">{testResults.tests_count}</span>
+                        {testResults.stderr !== "Правильно" && (
+                          <div className="text-red-500 mt-1">{testResults.stderr}</div>
+                        )}
+                      </div>
+
+                      {testResults.status === 1 && (
+                        <Button
+                          className="px-6 py-3 rounded-lg bg-green-500 text-white font-medium transition-all hover:bg-green-600 hover:scale-105 text-center flex items-center gap-2"
+                        >
+                          <Save className="w-4 h-4" />
+                          Сохранить задачу
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
