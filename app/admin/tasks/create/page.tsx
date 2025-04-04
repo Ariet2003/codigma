@@ -39,6 +39,14 @@ import { java } from '@codemirror/lang-java';
 import { vscodeDark } from '@uiw/codemirror-theme-vscode';
 import { basicLight } from '@uiw/codemirror-theme-basic';
 import { FileCode2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type TestResult = {
   tests_count: number;
@@ -77,6 +85,34 @@ type CodeTemplates = {
   fullJs: string;
   fullRust: string;
   fullJava: string;
+};
+
+type TaskPreview = {
+  title: string;
+  difficulty: string;
+  description: string;
+  function_name: string;
+  input_params: Parameter[];
+  output_params: Parameter[];
+  templates: {
+    cpp: {
+      base: string;
+      full: string;
+    };
+    js: {
+      base: string;
+      full: string;
+    };
+    rust: {
+      base: string;
+      full: string;
+    };
+    java: {
+      base: string;
+      full: string;
+    };
+  };
+  test_cases: TestCase[];
 };
 
 // Ключи для localStorage
@@ -126,6 +162,10 @@ export default function CreateTask() {
   const [isGeneratingTests, setIsGeneratingTests] = useState(false);
   const [testResults, setTestResults] = useState<TestResult | null>(null);
   const [isTestingCases, setIsTestingCases] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [taskPreview, setTaskPreview] = useState<TaskPreview | null>(null);
+  const [showResult, setShowResult] = useState(false);
+  const [saveResult, setSaveResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Функции для управления параметрами
   const addInputParam = () => {
@@ -482,556 +522,800 @@ export default function CreateTask() {
     }
   };
 
-  return (
-    <div className="min-h-screen p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="animate-pulse-slow bg-[#4E7AFF]/10 p-2 rounded-lg">
-            <FileText className="w-6 h-6 text-[#4E7AFF]" />
-          </div>
-          <h1 className="text-2xl font-bold text-[#4E7AFF]">
-            Создать задачу
-          </h1>
-        </div>
-        <Button
-          variant="outline"
-          onClick={clearForm}
-          className="px-6 py-3 rounded-lg border border-[#4E7AFF] text-[#4E7AFF] dark:text-white font-medium transition-all hover:bg-[#4E7AFF]/10 hover:scale-105"
-        >
-          Очистить форму
-        </Button>
-      </div>
+  const handleSaveTask = () => {
+    const preview: TaskPreview = {
+      title,
+      difficulty,
+      description,
+      function_name: functionName,
+      input_params: inputParams,
+      output_params: outputParams,
+      templates: {
+        cpp: {
+          base: codeTemplates?.cppTemplate || "",
+          full: codeTemplates?.fullCpp || ""
+        },
+        js: {
+          base: codeTemplates?.jsTemplate || "",
+          full: codeTemplates?.fullJs || ""
+        },
+        rust: {
+          base: codeTemplates?.rustTemplate || "",
+          full: codeTemplates?.fullRust || ""
+        },
+        java: {
+          base: codeTemplates?.javaTemplate || "",
+          full: codeTemplates?.fullJava || ""
+        }
+      },
+      test_cases: testCases
+    };
+    setTaskPreview(preview);
+    setShowPreview(true);
+  };
+
+  const handleConfirmSave = async () => {
+    try {
+      if (!taskPreview) return;
+
+      const response = await fetch("/api/tasks", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(taskPreview),
+      });
+
+      const data = await response.json();
       
-      <div className="space-y-6">
-        <div className="flex flex-col md:flex-row gap-6">
-          <div className="flex-1 space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="animate-pulse-slow bg-[#4E7AFF]/10 p-2 rounded-lg">
-                <PenLine className="w-4 h-4 text-[#4E7AFF]" />
-              </div>
-              <Label htmlFor="title" className="font-medium text-foreground">
-                Название задачи
-              </Label>
-            </div>
-            <Input
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Введите название задачи"
-              className="border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30"
-            />
-          </div>
+      if (!response.ok) {
+        throw new Error(data.error || "Ошибка при сохранении задачи");
+      }
 
-          <div className="w-full md:w-48 space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="animate-pulse-slow bg-[#4E7AFF]/10 p-2 rounded-lg">
-                <BarChart className="w-4 h-4 text-[#4E7AFF]" />
-              </div>
-              <Label htmlFor="difficulty" className="font-medium text-foreground">
-                Сложность
-              </Label>
-            </div>
-            <Select value={difficulty} onValueChange={setDifficulty}>
-              <SelectTrigger 
-                id="difficulty" 
-                className="border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30"
-              >
-                <SelectValue placeholder="Выберите" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="easy" className="text-green-500">Легкий</SelectItem>
-                <SelectItem value="medium" className="text-yellow-500">Средний</SelectItem>
-                <SelectItem value="hard" className="text-red-500">Сложный</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+      // Закрываем окно предпросмотра
+      setShowPreview(false);
+      
+      // Показываем результат
+      setSaveResult({
+        success: true,
+        message: "Задача успешно сохранена!"
+      });
+      setShowResult(true);
+    } catch (error) {
+      console.error("Ошибка при сохранении задачи:", error);
+      setSaveResult({
+        success: false,
+        message: error instanceof Error ? error.message : "Произошла ошибка при сохранении задачи"
+      });
+      setShowResult(true);
+    }
+  };
 
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="animate-pulse-slow bg-[#4E7AFF]/10 p-2 rounded-lg">
-                <PenLine className="w-4 h-4 text-[#4E7AFF]" />
-              </div>
-              <Label htmlFor="description" className="font-medium text-foreground">
-                Описание задачи
-              </Label>
-            </div>
-            <div className="flex items-center gap-3">
-              <Eye className="w-4 h-4 text-[#4E7AFF]" />
-              <Switch
-                id="markdown-preview"
-                checked={showMarkdown}
-                onCheckedChange={setShowMarkdown}
-              />
-            </div>
-          </div>
+  const handleResultClose = () => {
+    setShowResult(false);
+    if (saveResult?.success) {
+      clearForm();
+    }
+  };
 
-          <div className="relative">
-            {!showMarkdown ? (
-              <div className="border border-color-[hsl(var(--border))] rounded-lg">
-                <Textarea
-                  id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Введите описание задачи"
-                  className="min-h-[200px] font-mono text-sm border-none resize-y focus-visible:ring-0 bg-transparent text-foreground"
-                />
-              </div>
-            ) : (
-              <div className="border border-color-[hsl(var(--border))] rounded-lg bg-transparent p-6">
-                <div className="prose dark:prose-invert max-w-none">
-                  <ReactMarkdown>
-                    {description || "*Нет описания...*"}
-                  </ReactMarkdown>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-4">
-          <Button 
-            onClick={generateMarkdown} 
-            disabled={!description || isLoading}
-            className="px-6 py-3 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105 text-center flex items-center gap-2"
-          >
-            {isLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Wand2 className="w-4 h-4" />
-            )}
-            {isLoading ? "Генерация..." : "Генерировать Markdown"}
-          </Button>
-        </div>
-
-        <div className="border-t border-color-[hsl(var(--border))] mt-6 pt-6">
+  return (
+    <>
+      <div className="min-h-screen p-6 space-y-6">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="animate-pulse-slow bg-[#4E7AFF]/10 p-2 rounded-lg">
               <FileText className="w-6 h-6 text-[#4E7AFF]" />
             </div>
-            <h2 className="text-xl font-bold text-[#4E7AFF]">
-              Генератор шаблонного кода
-            </h2>
+            <h1 className="text-2xl font-bold text-[#4E7AFF]">
+              Создать задачу
+            </h1>
           </div>
-
-          <div className="space-y-6 mt-6">
-            <div className="space-y-2">
+          <Button
+            variant="outline"
+            onClick={clearForm}
+            className="px-6 py-3 rounded-lg border border-[#4E7AFF] text-[#4E7AFF] dark:text-white font-medium transition-all hover:bg-[#4E7AFF]/10 hover:scale-105"
+          >
+            Очистить форму
+          </Button>
+        </div>
+        
+        <div className="space-y-6">
+          <div className="flex flex-col md:flex-row gap-6">
+            <div className="flex-1 space-y-2">
               <div className="flex items-center gap-2">
                 <div className="animate-pulse-slow bg-[#4E7AFF]/10 p-2 rounded-lg">
                   <PenLine className="w-4 h-4 text-[#4E7AFF]" />
                 </div>
-                <Label htmlFor="functionName" className="font-medium text-foreground">
-                  Название функции
+                <Label htmlFor="title" className="font-medium text-foreground">
+                  Название задачи
                 </Label>
               </div>
               <Input
-                id="functionName"
-                placeholder="Введите название функции"
+                id="title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Введите название задачи"
                 className="border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30"
-                value={functionName}
-                onChange={(e) => setFunctionName(e.target.value)}
               />
             </div>
 
-            <div className="space-y-4">
-              <h3 className="font-medium text-foreground">Структура входных данных</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Входные переменные */}
-                <div className="space-y-2 rounded-lg border border-color-[hsl(var(--border))] p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-foreground">Входные параметры</span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="px-4 py-2 rounded-lg border border-[#4E7AFF] text-[#4E7AFF] dark:text-white font-medium transition-all hover:bg-[#4E7AFF]/10 hover:scale-105"
-                      onClick={addInputParam}
-                    >
-                      Добавить параметр
-                    </Button>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    {inputParams.map((param) => (
-                      <div key={param.id} className="flex gap-4 items-center">
-                        <Input
-                          placeholder="Название параметра"
-                          className="flex-1 border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30"
-                          value={param.name}
-                          onChange={(e) => updateInputParam(param.id, 'name', e.target.value)}
-                        />
-                        <Select
-                          value={param.type}
-                          onValueChange={(value) => updateInputParam(param.id, 'type', value)}
-                        >
-                          <SelectTrigger className="w-[180px] border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30">
-                            <SelectValue placeholder="Выберите тип" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="int">int</SelectItem>
-                            <SelectItem value="float">float</SelectItem>
-                            <SelectItem value="string">string</SelectItem>
-                            <SelectItem value="bool">bool</SelectItem>
-                            <SelectItem value="list<int>">list&lt;int&gt;</SelectItem>
-                            <SelectItem value="list<float>">list&lt;float&gt;</SelectItem>
-                            <SelectItem value="list<string>">list&lt;string&gt;</SelectItem>
-                            <SelectItem value="list<bool>">list&lt;bool&gt;</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-[#4E7AFF] hover:text-red-500 transition-all"
-                          onClick={() => removeInputParam(param.id)}
-                          disabled={inputParams.length === 1}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
+            <div className="w-full md:w-48 space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="animate-pulse-slow bg-[#4E7AFF]/10 p-2 rounded-lg">
+                  <BarChart className="w-4 h-4 text-[#4E7AFF]" />
                 </div>
+                <Label htmlFor="difficulty" className="font-medium text-foreground">
+                  Сложность
+                </Label>
+              </div>
+              <Select value={difficulty} onValueChange={setDifficulty}>
+                <SelectTrigger 
+                  id="difficulty" 
+                  className="border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30"
+                >
+                  <SelectValue placeholder="Выберите" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="easy" className="text-green-500">Легкий</SelectItem>
+                  <SelectItem value="medium" className="text-yellow-500">Средний</SelectItem>
+                  <SelectItem value="hard" className="text-red-500">Сложный</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
-                {/* Выходные переменные */}
-                <div className="space-y-2 rounded-lg border border-color-[hsl(var(--border))] p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-foreground">Выходные параметры</span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="px-4 py-2 rounded-lg border border-[#4E7AFF] text-[#4E7AFF] dark:text-white font-medium transition-all hover:bg-[#4E7AFF]/10 hover:scale-105"
-                      onClick={addOutputParam}
-                    >
-                      Добавить параметр
-                    </Button>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    {outputParams.map((param) => (
-                      <div key={param.id} className="flex gap-4 items-center">
-                        <Input
-                          placeholder="Название параметра"
-                          className="flex-1 border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30"
-                          value={param.name}
-                          onChange={(e) => updateOutputParam(param.id, 'name', e.target.value)}
-                        />
-                        <Select
-                          value={param.type}
-                          onValueChange={(value) => updateOutputParam(param.id, 'type', value)}
-                        >
-                          <SelectTrigger className="w-[180px] border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30">
-                            <SelectValue placeholder="Выберите тип" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="int">int</SelectItem>
-                            <SelectItem value="float">float</SelectItem>
-                            <SelectItem value="string">string</SelectItem>
-                            <SelectItem value="bool">bool</SelectItem>
-                            <SelectItem value="list<int>">list&lt;int&gt;</SelectItem>
-                            <SelectItem value="list<float>">list&lt;float&gt;</SelectItem>
-                            <SelectItem value="list<string>">list&lt;string&gt;</SelectItem>
-                            <SelectItem value="list<bool>">list&lt;bool&gt;</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-[#4E7AFF] hover:text-red-500 transition-all"
-                          onClick={() => removeOutputParam(param.id)}
-                          disabled={outputParams.length === 1}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="animate-pulse-slow bg-[#4E7AFF]/10 p-2 rounded-lg">
+                  <PenLine className="w-4 h-4 text-[#4E7AFF]" />
                 </div>
+                <Label htmlFor="description" className="font-medium text-foreground">
+                  Описание задачи
+                </Label>
+              </div>
+              <div className="flex items-center gap-3">
+                <Eye className="w-4 h-4 text-[#4E7AFF]" />
+                <Switch
+                  id="markdown-preview"
+                  checked={showMarkdown}
+                  onCheckedChange={setShowMarkdown}
+                />
               </div>
             </div>
 
-            <div className="flex justify-end mt-4">
-              <Button 
-                className="px-6 py-3 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105 text-center flex items-center gap-2"
-                disabled={!functionName || inputParams.some(p => !p.name || !p.type) || outputParams.some(p => !p.name || !p.type)}
-                onClick={generateTemplates}
-              >
-                <FileCode2 className="w-4 h-4" />
-                Создать шаблон
-              </Button>
+            <div className="relative">
+              {!showMarkdown ? (
+                <div className="border border-color-[hsl(var(--border))] rounded-lg">
+                  <Textarea
+                    id="description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Введите описание задачи"
+                    className="min-h-[200px] font-mono text-sm border-none resize-y focus-visible:ring-0 bg-transparent text-foreground"
+                  />
+                </div>
+              ) : (
+                <div className="border border-color-[hsl(var(--border))] rounded-lg bg-transparent p-6">
+                  <div className="prose dark:prose-invert max-w-none">
+                    <ReactMarkdown>
+                      {description || "*Нет описания...*"}
+                    </ReactMarkdown>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        </div>
 
-        {codeTemplates && (
-          <>
+          <div className="flex justify-end gap-4">
+            <Button 
+              onClick={generateMarkdown} 
+              disabled={!description || isLoading}
+              className="px-6 py-3 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105 text-center flex items-center gap-2"
+            >
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Wand2 className="w-4 h-4" />
+              )}
+              {isLoading ? "Генерация..." : "Генерировать Markdown"}
+            </Button>
+          </div>
+
+          <div className="border-t border-color-[hsl(var(--border))] mt-6 pt-6">
+            <div className="flex items-center gap-2">
+              <div className="animate-pulse-slow bg-[#4E7AFF]/10 p-2 rounded-lg">
+                <FileText className="w-6 h-6 text-[#4E7AFF]" />
+              </div>
+              <h2 className="text-xl font-bold text-[#4E7AFF]">
+                Генератор шаблонного кода
+              </h2>
+            </div>
+
             <div className="space-y-6 mt-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-bold text-[#4E7AFF]">Шаблонные коды</h3>
-                <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
-                  <SelectTrigger className="w-[180px] border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30">
-                    <SelectValue placeholder="Выберите язык" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cpp">C++</SelectItem>
-                    <SelectItem value="js">JavaScript</SelectItem>
-                    <SelectItem value="rust">Rust</SelectItem>
-                    <SelectItem value="java">Java</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="animate-pulse-slow bg-[#4E7AFF]/10 p-2 rounded-lg">
+                    <PenLine className="w-4 h-4 text-[#4E7AFF]" />
+                  </div>
+                  <Label htmlFor="functionName" className="font-medium text-foreground">
+                    Название функции
+                  </Label>
+                </div>
+                <Input
+                  id="functionName"
+                  placeholder="Введите название функции"
+                  className="border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30"
+                  value={functionName}
+                  onChange={(e) => setFunctionName(e.target.value)}
+                />
               </div>
 
               <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label className="font-medium text-foreground">Базовый шаблон</Label>
-                  <div className="rounded-lg border border-color-[hsl(var(--border))] overflow-hidden">
-                    <SyntaxHighlighter
-                      language={selectedLanguage === "js" ? "javascript" : selectedLanguage}
-                      style={theme === 'dark' ? nightOwl : oneLight}
-                      customStyle={{ margin: 0, borderRadius: 0 }}
-                    >
-                      {getTemplateForLanguage(selectedLanguage)}
-                    </SyntaxHighlighter>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="font-medium text-foreground">Полный шаблон</Label>
-                  <div className="rounded-lg border border-color-[hsl(var(--border))] overflow-hidden">
-                    <SyntaxHighlighter
-                      language={selectedLanguage === "js" ? "javascript" : selectedLanguage}
-                      style={theme === 'dark' ? nightOwl : oneLight}
-                      customStyle={{ margin: 0, borderRadius: 0 }}
-                    >
-                      {getFullTemplateForLanguage(selectedLanguage)}
-                    </SyntaxHighlighter>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t border-color-[hsl(var(--border))] mt-6 pt-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-2">
-                  <div className="animate-pulse-slow bg-[#4E7AFF]/10 p-2 rounded-lg">
-                    <Beaker className="w-6 h-6 text-[#4E7AFF]" />
-                  </div>
-                  <h2 className="text-xl font-bold text-[#4E7AFF]">
-                    Тесты для задачки
-                  </h2>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-[1fr,300px] gap-6">
-                <div className="space-y-4">
-                  <div className="rounded-lg border border-color-[hsl(var(--border))] overflow-hidden">
-                    <CodeMirror
-                      value={testCode}
-                      height="auto"
-                      minHeight="250px"
-                      maxHeight="600px"
-                      theme={theme === 'dark' ? vscodeDark : basicLight}
-                      onChange={(value) => {
-                        setTestCode(value);
-                      }}
-                      extensions={[getLanguageExtension(testLanguage)]}
-                      className={`${theme === 'light' ? 'text-[15px]' : 'text-[15px]'}`}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="text-lg font-semibold text-[#4E7AFF] mb-4">Parameters</h3>
-                    
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label className="font-medium text-foreground">
-                          Языковой режим для тестов
-                        </Label>
-                        <Select value={testLanguage} onValueChange={setTestLanguage}>
-                          <SelectTrigger className="w-full border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30">
-                            <SelectValue placeholder="Выберите язык" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="cpp">C++</SelectItem>
-                            <SelectItem value="js">JavaScript</SelectItem>
-                            <SelectItem value="rust">Rust</SelectItem>
-                            <SelectItem value="java">Java</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label className="font-medium text-foreground">
-                          Количество тестов
-                        </Label>
-                        <div className="flex items-center gap-4">
-                          <input
-                            type="range"
-                            min="1"
-                            max="20"
-                            value={testCount}
-                            onChange={(e) => setTestCount(Number(e.target.value))}
-                            className="flex-1 h-2 bg-[#4E7AFF]/20 rounded-lg appearance-none cursor-pointer accent-[#4E7AFF]"
-                          />
-                          <span className="text-foreground font-medium min-w-[2rem] text-center">
-                            {testCount}
-                          </span>
-                        </div>
-                      </div>
-
-                      <Button 
-                        className="w-full px-6 py-3 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105 text-center flex items-center justify-center gap-2"
-                        onClick={generateTests}
-                        disabled={isGeneratingTests}
+                <h3 className="font-medium text-foreground">Структура входных данных</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Входные переменные */}
+                  <div className="space-y-2 rounded-lg border border-color-[hsl(var(--border))] p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-foreground">Входные параметры</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="px-4 py-2 rounded-lg border border-[#4E7AFF] text-[#4E7AFF] dark:text-white font-medium transition-all hover:bg-[#4E7AFF]/10 hover:scale-105"
+                        onClick={addInputParam}
                       >
-                        {isGeneratingTests ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Sparkles className="w-4 h-4" />
-                        )}
-                        {isGeneratingTests ? "Генерация..." : "Тесткейсы"}
+                        Добавить параметр
                       </Button>
                     </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {testCases.length > 0 && (
-              <div className="mt-6 space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold text-[#4E7AFF]">Сгенерированные тесткейсы</h3>
-                  <Button
-                    variant="outline"
-                    onClick={() => setTestCases([])}
-                    className="px-4 py-2 rounded-lg border border-[#4E7AFF] text-[#4E7AFF] dark:text-white font-medium transition-all hover:bg-[#4E7AFF]/10 hover:scale-105 text-center flex items-center gap-2"
-                  >
-                    Очистить тесты
-                  </Button>
-                </div>
-
-                <div className="space-y-4">
-                  {testCases.map((testCase, index) => (
-                    <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <div className="h-8 flex items-center">
-                          <Label className="font-medium text-foreground">
-                            Входные данные {index + 1}
-                          </Label>
-                        </div>
-                        <div className={`rounded-lg border overflow-hidden ${
-                          testResults && testCase.isCorrect !== undefined ? 
-                            (testCase.isCorrect ? "border-green-500" : "border-red-500") : 
-                            "border-color-[hsl(var(--border))]"
-                        }`}>
-                          <Textarea
-                            value={testCase.input}
-                            onChange={(e) => {
-                              const newTestCases = [...testCases];
-                              newTestCases[index].input = e.target.value;
-                              setTestCases(newTestCases);
-                            }}
-                            className="min-h-[100px] font-mono text-sm border-none resize-y focus-visible:ring-0 bg-transparent text-foreground"
+                    
+                    <div className="space-y-3">
+                      {inputParams.map((param) => (
+                        <div key={param.id} className="flex gap-4 items-center">
+                          <Input
+                            placeholder="Название параметра"
+                            className="flex-1 border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30"
+                            value={param.name}
+                            onChange={(e) => updateInputParam(param.id, 'name', e.target.value)}
                           />
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="h-8 flex items-center justify-between gap-2">
-                          <Label className="font-medium text-foreground">
-                            Ожидаемый вывод {index + 1}
-                          </Label>
+                          <Select
+                            value={param.type}
+                            onValueChange={(value) => updateInputParam(param.id, 'type', value)}
+                          >
+                            <SelectTrigger className="w-[180px] border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30">
+                              <SelectValue placeholder="Выберите тип" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="int">int</SelectItem>
+                              <SelectItem value="float">float</SelectItem>
+                              <SelectItem value="string">string</SelectItem>
+                              <SelectItem value="bool">bool</SelectItem>
+                              <SelectItem value="list<int>">list&lt;int&gt;</SelectItem>
+                              <SelectItem value="list<float>">list&lt;float&gt;</SelectItem>
+                              <SelectItem value="list<string>">list&lt;string&gt;</SelectItem>
+                              <SelectItem value="list<bool>">list&lt;bool&gt;</SelectItem>
+                            </SelectContent>
+                          </Select>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="text-[#4E7AFF] hover:text-red-500 transition-all shrink-0"
-                            onClick={() => {
-                              const newTestCases = [...testCases];
-                              newTestCases.splice(index, 1);
-                              setTestCases(newTestCases);
-                            }}
+                            className="text-[#4E7AFF] hover:text-red-500 transition-all"
+                            onClick={() => removeInputParam(param.id)}
+                            disabled={inputParams.length === 1}
                           >
                             <X className="w-4 h-4" />
                           </Button>
                         </div>
-                        <div className={`rounded-lg border overflow-hidden ${
-                          testResults && testCase.isCorrect !== undefined ? 
-                            (testCase.isCorrect ? "border-green-500" : "border-red-500") : 
-                            "border-color-[hsl(var(--border))]"
-                        }`}>
-                          <Textarea
-                            value={String(testCase.expected_output)}
-                            onChange={(e) => {
-                              const newTestCases = [...testCases];
-                              newTestCases[index].expected_output = e.target.value;
-                              setTestCases(newTestCases);
-                            }}
-                            className="min-h-[100px] font-mono text-sm border-none resize-y focus-visible:ring-0 bg-transparent text-foreground"
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Выходные переменные */}
+                  <div className="space-y-2 rounded-lg border border-color-[hsl(var(--border))] p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-foreground">Выходные параметры</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="px-4 py-2 rounded-lg border border-[#4E7AFF] text-[#4E7AFF] dark:text-white font-medium transition-all hover:bg-[#4E7AFF]/10 hover:scale-105"
+                        onClick={addOutputParam}
+                      >
+                        Добавить параметр
+                      </Button>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {outputParams.map((param) => (
+                        <div key={param.id} className="flex gap-4 items-center">
+                          <Input
+                            placeholder="Название параметра"
+                            className="flex-1 border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30"
+                            value={param.name}
+                            onChange={(e) => updateOutputParam(param.id, 'name', e.target.value)}
                           />
+                          <Select
+                            value={param.type}
+                            onValueChange={(value) => updateOutputParam(param.id, 'type', value)}
+                          >
+                            <SelectTrigger className="w-[180px] border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30">
+                              <SelectValue placeholder="Выберите тип" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="int">int</SelectItem>
+                              <SelectItem value="float">float</SelectItem>
+                              <SelectItem value="string">string</SelectItem>
+                              <SelectItem value="bool">bool</SelectItem>
+                              <SelectItem value="list<int>">list&lt;int&gt;</SelectItem>
+                              <SelectItem value="list<float>">list&lt;float&gt;</SelectItem>
+                              <SelectItem value="list<string>">list&lt;string&gt;</SelectItem>
+                              <SelectItem value="list<bool>">list&lt;bool&gt;</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-[#4E7AFF] hover:text-red-500 transition-all"
+                            onClick={() => removeOutputParam(param.id)}
+                            disabled={outputParams.length === 1}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end mt-4">
+                <Button 
+                  className="px-6 py-3 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105 text-center flex items-center gap-2"
+                  disabled={!functionName || inputParams.some(p => !p.name || !p.type) || outputParams.some(p => !p.name || !p.type)}
+                  onClick={generateTemplates}
+                >
+                  <FileCode2 className="w-4 h-4" />
+                  Создать шаблон
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {codeTemplates && (
+            <>
+              <div className="space-y-6 mt-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-[#4E7AFF]">Шаблонные коды</h3>
+                  <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
+                    <SelectTrigger className="w-[180px] border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30">
+                      <SelectValue placeholder="Выберите язык" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cpp">C++</SelectItem>
+                      <SelectItem value="js">JavaScript</SelectItem>
+                      <SelectItem value="rust">Rust</SelectItem>
+                      <SelectItem value="java">Java</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="font-medium text-foreground">Базовый шаблон</Label>
+                    <div className="rounded-lg border border-color-[hsl(var(--border))] overflow-hidden">
+                      <SyntaxHighlighter
+                        language={selectedLanguage === "js" ? "javascript" : selectedLanguage}
+                        style={theme === 'dark' ? nightOwl : oneLight}
+                        customStyle={{ margin: 0, borderRadius: 0 }}
+                      >
+                        {getTemplateForLanguage(selectedLanguage)}
+                      </SyntaxHighlighter>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="font-medium text-foreground">Полный шаблон</Label>
+                    <div className="rounded-lg border border-color-[hsl(var(--border))] overflow-hidden">
+                      <SyntaxHighlighter
+                        language={selectedLanguage === "js" ? "javascript" : selectedLanguage}
+                        style={theme === 'dark' ? nightOwl : oneLight}
+                        customStyle={{ margin: 0, borderRadius: 0 }}
+                      >
+                        {getFullTemplateForLanguage(selectedLanguage)}
+                      </SyntaxHighlighter>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-color-[hsl(var(--border))] mt-6 pt-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-2">
+                    <div className="animate-pulse-slow bg-[#4E7AFF]/10 p-2 rounded-lg">
+                      <Beaker className="w-6 h-6 text-[#4E7AFF]" />
+                    </div>
+                    <h2 className="text-xl font-bold text-[#4E7AFF]">
+                      Тесты для задачки
+                    </h2>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-[1fr,300px] gap-6">
+                  <div className="space-y-4">
+                    <div className="rounded-lg border border-color-[hsl(var(--border))] overflow-hidden">
+                      <CodeMirror
+                        value={testCode}
+                        height="auto"
+                        minHeight="250px"
+                        maxHeight="600px"
+                        theme={theme === 'dark' ? vscodeDark : basicLight}
+                        onChange={(value) => {
+                          setTestCode(value);
+                        }}
+                        extensions={[getLanguageExtension(testLanguage)]}
+                        className={`${theme === 'light' ? 'text-[15px]' : 'text-[15px]'}`}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-lg font-semibold text-[#4E7AFF] mb-4">Parameters</h3>
+                      
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label className="font-medium text-foreground">
+                            Языковой режим для тестов
+                          </Label>
+                          <Select value={testLanguage} onValueChange={setTestLanguage}>
+                            <SelectTrigger className="w-full border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30">
+                              <SelectValue placeholder="Выберите язык" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="cpp">C++</SelectItem>
+                              <SelectItem value="js">JavaScript</SelectItem>
+                              <SelectItem value="rust">Rust</SelectItem>
+                              <SelectItem value="java">Java</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="font-medium text-foreground">
+                            Количество тестов
+                          </Label>
+                          <div className="flex items-center gap-4">
+                            <input
+                              type="range"
+                              min="1"
+                              max="20"
+                              value={testCount}
+                              onChange={(e) => setTestCount(Number(e.target.value))}
+                              className="flex-1 h-2 bg-[#4E7AFF]/20 rounded-lg appearance-none cursor-pointer accent-[#4E7AFF]"
+                            />
+                            <span className="text-foreground font-medium min-w-[2rem] text-center">
+                              {testCount}
+                            </span>
+                          </div>
+                        </div>
+
+                        <Button 
+                          className="w-full px-6 py-3 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105 text-center flex items-center justify-center gap-2"
+                          onClick={generateTests}
+                          disabled={isGeneratingTests}
+                        >
+                          {isGeneratingTests ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-4 h-4" />
+                          )}
+                          {isGeneratingTests ? "Генерация..." : "Тесткейсы"}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {testCases.length > 0 && (
+                <div className="mt-6 space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xl font-bold text-[#4E7AFF]">Сгенерированные тесткейсы</h3>
+                    <Button
+                      variant="outline"
+                      onClick={() => setTestCases([])}
+                      className="px-4 py-2 rounded-lg border border-[#4E7AFF] text-[#4E7AFF] dark:text-white font-medium transition-all hover:bg-[#4E7AFF]/10 hover:scale-105 text-center flex items-center gap-2"
+                    >
+                      Очистить тесты
+                    </Button>
+                  </div>
+
+                  <div className="space-y-4">
+                    {testCases.map((testCase, index) => (
+                      <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <div className="h-8 flex items-center">
+                            <Label className="font-medium text-foreground">
+                              Входные данные {index + 1}
+                            </Label>
+                          </div>
+                          <div className={`rounded-lg border overflow-hidden ${
+                            testResults && testCase.isCorrect !== undefined ? 
+                              (testCase.isCorrect ? "border-green-500" : "border-red-500") : 
+                              "border-color-[hsl(var(--border))]"
+                          }`}>
+                            <Textarea
+                              value={testCase.input}
+                              onChange={(e) => {
+                                const newTestCases = [...testCases];
+                                newTestCases[index].input = e.target.value;
+                                setTestCases(newTestCases);
+                              }}
+                              className="min-h-[100px] font-mono text-sm border-none resize-y focus-visible:ring-0 bg-transparent text-foreground"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="h-8 flex items-center justify-between gap-2">
+                            <Label className="font-medium text-foreground">
+                              Ожидаемый вывод {index + 1}
+                            </Label>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-[#4E7AFF] hover:text-red-500 transition-all shrink-0"
+                              onClick={() => {
+                                const newTestCases = [...testCases];
+                                newTestCases.splice(index, 1);
+                                setTestCases(newTestCases);
+                              }}
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          </div>
+                          <div className={`rounded-lg border overflow-hidden ${
+                            testResults && testCase.isCorrect !== undefined ? 
+                              (testCase.isCorrect ? "border-green-500" : "border-red-500") : 
+                              "border-color-[hsl(var(--border))]"
+                          }`}>
+                            <Textarea
+                              value={String(testCase.expected_output)}
+                              onChange={(e) => {
+                                const newTestCases = [...testCases];
+                                newTestCases[index].expected_output = e.target.value;
+                                setTestCases(newTestCases);
+                              }}
+                              className="min-h-[100px] font-mono text-sm border-none resize-y focus-visible:ring-0 bg-transparent text-foreground"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-4">
+                      <Button
+                        onClick={() => {
+                          // При добавлении нового тесткейса не устанавливаем статус
+                          setTestCases([
+                            ...testCases,
+                            { input: "", expected_output: "", isCorrect: undefined }
+                          ]);
+                        }}
+                        variant="outline"
+                        className="px-6 py-3 rounded-lg border border-[#4E7AFF] text-[#4E7AFF] dark:text-white font-medium transition-all hover:bg-[#4E7AFF]/10 hover:scale-105 text-center flex items-center gap-2"
+                      >
+                        <PenLine className="w-4 h-4" />
+                        Добавить тесткейс
+                      </Button>
+
+                      <Button
+                        onClick={runTestCases}
+                        disabled={isTestingCases}
+                        className="px-6 py-3 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105 text-center flex items-center gap-2"
+                      >
+                        {isTestingCases ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Beaker className="w-4 h-4" />
+                        )}
+                        {isTestingCases ? "Тестирование..." : "Тестировать тесткейсы"}
+                      </Button>
+                    </div>
+
+                    {testResults && (
+                      <div className="flex items-center gap-4">
+                        <div className="text-sm">
+                          Правильно: <span className="font-bold text-green-500">{testResults.correct_tests_count}</span> из <span className="font-bold">{testResults.tests_count}</span>
+                          {testResults.stderr !== "Правильно" && (
+                            <div className="text-red-500 mt-1">{testResults.stderr}</div>
+                          )}
+                        </div>
+
+                        {testResults.status === 1 && (
+                          <Button
+                            onClick={handleSaveTask}
+                            className="px-6 py-3 rounded-lg bg-green-500 text-white font-medium transition-all hover:bg-green-600 hover:scale-105 text-center flex items-center gap-2"
+                          >
+                            <Save className="w-4 h-4" />
+                            Сохранить задачу
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Предпросмотр задачи</DialogTitle>
+            <DialogDescription>
+              Проверьте данные перед сохранением
+            </DialogDescription>
+          </DialogHeader>
+
+          {taskPreview && (
+            <div className="space-y-6 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <h3 className="font-medium text-sm text-muted-foreground">Название задачи</h3>
+                  <p className="text-foreground">{taskPreview.title}</p>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="font-medium text-sm text-muted-foreground">Сложность</h3>
+                  <p className={`
+                    ${taskPreview.difficulty === 'easy' ? 'text-green-500' : ''}
+                    ${taskPreview.difficulty === 'medium' ? 'text-yellow-500' : ''}
+                    ${taskPreview.difficulty === 'hard' ? 'text-red-500' : ''}
+                  `}>
+                    {taskPreview.difficulty === 'easy' ? 'Легкий' : 
+                     taskPreview.difficulty === 'medium' ? 'Средний' : 'Сложный'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="font-medium text-sm text-muted-foreground">Описание задачи</h3>
+                <div className="prose dark:prose-invert max-w-none border rounded-lg p-4">
+                  <ReactMarkdown>{taskPreview.description}</ReactMarkdown>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="font-medium text-sm text-muted-foreground">Название функции</h3>
+                <p className="font-mono text-foreground">{taskPreview.function_name}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <h3 className="font-medium text-sm text-muted-foreground">Входные параметры</h3>
+                  <div className="border rounded-lg p-4 space-y-2">
+                    {taskPreview.input_params.map((param, index) => (
+                      <div key={param.id} className="flex items-center gap-2">
+                        <span className="font-mono">{param.name}</span>
+                        <span className="text-muted-foreground">:</span>
+                        <span className="font-mono text-blue-500">{param.type}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <h3 className="font-medium text-sm text-muted-foreground">Выходные параметры</h3>
+                  <div className="border rounded-lg p-4 space-y-2">
+                    {taskPreview.output_params.map((param, index) => (
+                      <div key={param.id} className="flex items-center gap-2">
+                        <span className="font-mono">{param.name}</span>
+                        <span className="text-muted-foreground">:</span>
+                        <span className="font-mono text-blue-500">{param.type}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="font-medium text-sm text-muted-foreground">Шаблоны кода</h3>
+                <div className="space-y-4">
+                  {Object.entries(taskPreview.templates).map(([lang, templates]) => (
+                    <div key={lang} className="border rounded-lg p-4 space-y-4">
+                      <h4 className="font-medium text-sm text-muted-foreground">
+                        {getLanguageLabel(lang)}
+                      </h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <h5 className="text-xs text-muted-foreground">Базовый шаблон</h5>
+                          <div className="border rounded-lg overflow-hidden">
+                            <SyntaxHighlighter
+                              language={lang === "js" ? "javascript" : lang}
+                              style={theme === 'dark' ? nightOwl : oneLight}
+                              customStyle={{ margin: 0, borderRadius: 0 }}
+                            >
+                              {templates.base}
+                            </SyntaxHighlighter>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <h5 className="text-xs text-muted-foreground">Полный шаблон</h5>
+                          <div className="border rounded-lg overflow-hidden">
+                            <SyntaxHighlighter
+                              language={lang === "js" ? "javascript" : lang}
+                              style={theme === 'dark' ? nightOwl : oneLight}
+                              customStyle={{ margin: 0, borderRadius: 0 }}
+                            >
+                              {templates.full}
+                            </SyntaxHighlighter>
+                          </div>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
+              </div>
 
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-4">
-                    <Button
-                      onClick={() => {
-                        // При добавлении нового тесткейса не устанавливаем статус
-                        setTestCases([
-                          ...testCases,
-                          { input: "", expected_output: "", isCorrect: undefined }
-                        ]);
-                      }}
-                      variant="outline"
-                      className="px-6 py-3 rounded-lg border border-[#4E7AFF] text-[#4E7AFF] dark:text-white font-medium transition-all hover:bg-[#4E7AFF]/10 hover:scale-105 text-center flex items-center gap-2"
-                    >
-                      <PenLine className="w-4 h-4" />
-                      Добавить тесткейс
-                    </Button>
-
-                    <Button
-                      onClick={runTestCases}
-                      disabled={isTestingCases}
-                      className="px-6 py-3 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105 text-center flex items-center gap-2"
-                    >
-                      {isTestingCases ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Beaker className="w-4 h-4" />
-                      )}
-                      {isTestingCases ? "Тестирование..." : "Тестировать тесткейсы"}
-                    </Button>
-                  </div>
-
-                  {testResults && (
-                    <div className="flex items-center gap-4">
-                      <div className="text-sm">
-                        Правильно: <span className="font-bold text-green-500">{testResults.correct_tests_count}</span> из <span className="font-bold">{testResults.tests_count}</span>
-                        {testResults.stderr !== "Правильно" && (
-                          <div className="text-red-500 mt-1">{testResults.stderr}</div>
-                        )}
+              <div className="space-y-2">
+                <h3 className="font-medium text-sm text-muted-foreground">Тестовые случаи ({taskPreview.test_cases.length})</h3>
+                <div className="border rounded-lg p-4 space-y-4">
+                  {taskPreview.test_cases.map((test, index) => (
+                    <div key={index} className="grid grid-cols-2 gap-4 pb-4 border-b last:border-0 last:pb-0">
+                      <div className="space-y-1">
+                        <span className="text-xs text-muted-foreground">Входные данные {index + 1}</span>
+                        <pre className="font-mono text-sm bg-muted p-2 rounded">{test.input}</pre>
                       </div>
-
-                      {testResults.status === 1 && (
-                        <Button
-                          className="px-6 py-3 rounded-lg bg-green-500 text-white font-medium transition-all hover:bg-green-600 hover:scale-105 text-center flex items-center gap-2"
-                        >
-                          <Save className="w-4 h-4" />
-                          Сохранить задачу
-                        </Button>
-                      )}
+                      <div className="space-y-1">
+                        <span className="text-xs text-muted-foreground">Ожидаемый вывод {index + 1}</span>
+                        <pre className="font-mono text-sm bg-muted p-2 rounded">{test.expected_output}</pre>
+                      </div>
                     </div>
-                  )}
+                  ))}
                 </div>
               </div>
-            )}
-          </>
-        )}
-      </div>
-    </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowPreview(false)}
+            >
+              Вернуться к редактированию
+            </Button>
+            <Button
+              onClick={handleConfirmSave}
+              className="bg-green-500 hover:bg-green-600"
+            >
+              Сохранить задачу
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showResult} onOpenChange={setShowResult}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {saveResult?.success ? "Успех" : "Ошибка"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className={`text-lg ${saveResult?.success ? "text-green-500" : "text-red-500"}`}>
+              {saveResult?.message}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleResultClose}>
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 } 

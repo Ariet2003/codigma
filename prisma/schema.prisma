@@ -71,3 +71,43 @@ enum Role {
   USER
   ADMIN
 }
+
+model Task {
+  id            String     @id @default(uuid())
+  title         String
+  difficulty    String
+  description   String
+  functionName  String
+  inputParams   Json
+  outputParams  Json
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  testCases     TestCase[]
+  codeTemplates CodeTemplate[]
+}
+
+model TestCase {
+  id             String   @id @default(uuid())
+  input          String
+  expectedOutput String
+  taskId         String
+  task           Task     @relation(fields: [taskId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([taskId])
+}
+
+model CodeTemplate {
+  id           String   @id @default(uuid())
+  language     String   // 'cpp', 'js', 'rust', 'java'
+  baseTemplate String   @db.Text
+  fullTemplate String   @db.Text
+  taskId       String
+  task         Task     @relation(fields: [taskId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([taskId])
+  @@unique([taskId, language])
+}
