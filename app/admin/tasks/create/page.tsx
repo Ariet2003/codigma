@@ -23,11 +23,27 @@ import {
   Loader2,
   X
 } from "lucide-react";
+import { generateProblemTemplates } from "../../../lib/codeGenerator";
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { nightOwl } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { useTheme } from "next-themes";
 
 type Parameter = {
   id: string;
   name: string;
   type: string;
+};
+
+type CodeTemplates = {
+  cppTemplate: string;
+  jsTemplate: string;
+  rustTemplate: string;
+  javaTemplate: string;
+  fullCpp: string;
+  fullJs: string;
+  fullRust: string;
+  fullJava: string;
 };
 
 // Ключи для localStorage
@@ -38,7 +54,9 @@ const STORAGE_KEYS = {
   showMarkdown: 'create_task_show_markdown',
   functionName: 'create_task_function_name',
   inputParams: 'create_task_input_params',
-  outputParams: 'create_task_output_params'
+  outputParams: 'create_task_output_params',
+  codeTemplates: 'create_task_code_templates',
+  selectedLanguage: 'create_task_selected_language'
 };
 
 export default function CreateTask() {
@@ -58,6 +76,10 @@ export default function CreateTask() {
   const [outputParams, setOutputParams] = useState<Parameter[]>([
     { id: crypto.randomUUID(), name: "", type: "" }
   ]);
+
+  const [selectedLanguage, setSelectedLanguage] = useState<string>("cpp");
+  const [codeTemplates, setCodeTemplates] = useState<CodeTemplates | null>(null);
+  const { theme } = useTheme();
 
   // Функции для управления параметрами
   const addInputParam = () => {
@@ -102,6 +124,8 @@ export default function CreateTask() {
       const savedFunctionName = localStorage.getItem(STORAGE_KEYS.functionName);
       const savedInputParams = localStorage.getItem(STORAGE_KEYS.inputParams);
       const savedOutputParams = localStorage.getItem(STORAGE_KEYS.outputParams);
+      const savedCodeTemplates = localStorage.getItem(STORAGE_KEYS.codeTemplates);
+      const savedSelectedLanguage = localStorage.getItem(STORAGE_KEYS.selectedLanguage);
 
       if (savedTitle) setTitle(savedTitle);
       if (savedDifficulty) setDifficulty(savedDifficulty);
@@ -110,6 +134,8 @@ export default function CreateTask() {
       if (savedFunctionName) setFunctionName(savedFunctionName);
       if (savedInputParams) setInputParams(JSON.parse(savedInputParams));
       if (savedOutputParams) setOutputParams(JSON.parse(savedOutputParams));
+      if (savedCodeTemplates) setCodeTemplates(JSON.parse(savedCodeTemplates));
+      if (savedSelectedLanguage) setSelectedLanguage(savedSelectedLanguage);
       
       setIsInitialized(true);
     }
@@ -125,8 +151,10 @@ export default function CreateTask() {
       localStorage.setItem(STORAGE_KEYS.functionName, functionName);
       localStorage.setItem(STORAGE_KEYS.inputParams, JSON.stringify(inputParams));
       localStorage.setItem(STORAGE_KEYS.outputParams, JSON.stringify(outputParams));
+      localStorage.setItem(STORAGE_KEYS.codeTemplates, JSON.stringify(codeTemplates));
+      localStorage.setItem(STORAGE_KEYS.selectedLanguage, selectedLanguage);
     }
-  }, [title, difficulty, description, showMarkdown, functionName, inputParams, outputParams, isInitialized]);
+  }, [title, difficulty, description, showMarkdown, functionName, inputParams, outputParams, codeTemplates, selectedLanguage, isInitialized]);
 
   const generateMarkdown = async () => {
     try {
@@ -152,6 +180,52 @@ export default function CreateTask() {
     }
   };
 
+  const generateTemplates = () => {
+    const metadata = {
+      task_name: title,
+      difficulty: difficulty,
+      description: description,
+      function_name: functionName,
+      inputs: inputParams.map(({ name, type }) => ({ name, type })),
+      outputs: outputParams.map(({ name, type }) => ({ name, type }))
+    };
+
+    const templates = generateProblemTemplates(metadata);
+    setCodeTemplates(templates);
+  };
+
+  const getLanguageLabel = (lang: string) => {
+    switch (lang) {
+      case "cpp": return "C++";
+      case "js": return "JavaScript";
+      case "rust": return "Rust";
+      case "java": return "Java";
+      default: return lang;
+    }
+  };
+
+  const getTemplateForLanguage = (lang: string) => {
+    if (!codeTemplates) return "";
+    switch (lang) {
+      case "cpp": return codeTemplates.cppTemplate;
+      case "js": return codeTemplates.jsTemplate;
+      case "rust": return codeTemplates.rustTemplate;
+      case "java": return codeTemplates.javaTemplate;
+      default: return "";
+    }
+  };
+
+  const getFullTemplateForLanguage = (lang: string) => {
+    if (!codeTemplates) return "";
+    switch (lang) {
+      case "cpp": return codeTemplates.fullCpp;
+      case "js": return codeTemplates.fullJs;
+      case "rust": return codeTemplates.fullRust;
+      case "java": return codeTemplates.fullJava;
+      default: return "";
+    }
+  };
+
   // Функция для очистки формы
   const clearForm = () => {
     setTitle("");
@@ -161,6 +235,8 @@ export default function CreateTask() {
     setFunctionName("");
     setInputParams([{ id: crypto.randomUUID(), name: "", type: "" }]);
     setOutputParams([{ id: crypto.randomUUID(), name: "", type: "" }]);
+    setCodeTemplates(null);
+    setSelectedLanguage("cpp");
     
     // Очищаем localStorage
     Object.values(STORAGE_KEYS).forEach(key => {
@@ -436,14 +512,64 @@ export default function CreateTask() {
               </div>
             </div>
 
-            <Button 
-              className="w-full px-6 py-3 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105 text-center"
-              disabled={!functionName || inputParams.some(p => !p.name || !p.type) || outputParams.some(p => !p.name || !p.type)}
-            >
-              Создать шаблон
-            </Button>
+            <div className="flex justify-end mt-4">
+              <Button 
+                className="px-6 py-3 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105 text-center"
+                disabled={!functionName || inputParams.some(p => !p.name || !p.type) || outputParams.some(p => !p.name || !p.type)}
+                onClick={generateTemplates}
+              >
+                Создать шаблон
+              </Button>
+            </div>
           </div>
         </div>
+
+        {codeTemplates && (
+          <div className="space-y-6 mt-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-[#4E7AFF]">Шаблонные коды</h3>
+              <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
+                <SelectTrigger className="w-[180px] border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30">
+                  <SelectValue placeholder="Выберите язык" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cpp">C++</SelectItem>
+                  <SelectItem value="js">JavaScript</SelectItem>
+                  <SelectItem value="rust">Rust</SelectItem>
+                  <SelectItem value="java">Java</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="font-medium text-foreground">Базовый шаблон</Label>
+                <div className="rounded-lg border border-color-[hsl(var(--border))] overflow-hidden">
+                  <SyntaxHighlighter
+                    language={selectedLanguage === "js" ? "javascript" : selectedLanguage}
+                    style={theme === 'dark' ? nightOwl : oneLight}
+                    customStyle={{ margin: 0, borderRadius: 0 }}
+                  >
+                    {getTemplateForLanguage(selectedLanguage)}
+                  </SyntaxHighlighter>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="font-medium text-foreground">Полный шаблон</Label>
+                <div className="rounded-lg border border-color-[hsl(var(--border))] overflow-hidden">
+                  <SyntaxHighlighter
+                    language={selectedLanguage === "js" ? "javascript" : selectedLanguage}
+                    style={theme === 'dark' ? nightOwl : oneLight}
+                    customStyle={{ margin: 0, borderRadius: 0 }}
+                  >
+                    {getFullTemplateForLanguage(selectedLanguage)}
+                  </SyntaxHighlighter>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

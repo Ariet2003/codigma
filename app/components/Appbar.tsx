@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { signIn, useSession } from "next-auth/react";
-import { Button } from "./Button";
+import { Button } from "@/components/ui/button";
 import { ModeToggle } from "./ModeToggle";
 import UserContextMenu from "./UserContextMenu";
 import { usePathname } from "next/navigation";
