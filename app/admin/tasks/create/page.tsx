@@ -21,13 +21,22 @@ import {
   Eye, 
   Wand2,
   Loader2,
-  X
+  X,
+  Beaker,
+  Sparkles
 } from "lucide-react";
 import { generateProblemTemplates } from "../../../lib/codeGenerator";
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { nightOwl } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useTheme } from "next-themes";
+import CodeMirror from '@uiw/react-codemirror';
+import { javascript } from '@codemirror/lang-javascript';
+import { cpp } from '@codemirror/lang-cpp';
+import { rust } from '@codemirror/lang-rust';
+import { java } from '@codemirror/lang-java';
+import { vscodeDark } from '@uiw/codemirror-theme-vscode';
+import { basicLight } from '@uiw/codemirror-theme-basic';
 
 type Parameter = {
   id: string;
@@ -80,6 +89,10 @@ export default function CreateTask() {
   const [selectedLanguage, setSelectedLanguage] = useState<string>("cpp");
   const [codeTemplates, setCodeTemplates] = useState<CodeTemplates | null>(null);
   const { theme } = useTheme();
+
+  const [testCount, setTestCount] = useState<number>(10);
+  const [testLanguage, setTestLanguage] = useState<string>("cpp");
+  const [testCode, setTestCode] = useState<string>("");
 
   // Функции для управления параметрами
   const addInputParam = () => {
@@ -242,6 +255,29 @@ export default function CreateTask() {
     Object.values(STORAGE_KEYS).forEach(key => {
       localStorage.removeItem(key);
     });
+  };
+
+  const getTestTemplate = (lang: string) => {
+    let template = getTemplateForLanguage(lang);
+    const lines = template.split('\n');
+    if (lines.length < 10) {
+      template += '\n'.repeat(12 - lines.length);
+    }
+    return template;
+  };
+
+  useEffect(() => {
+    setTestCode(getTestTemplate(testLanguage));
+  }, [testLanguage, codeTemplates]);
+
+  const getLanguageExtension = (lang: string) => {
+    switch (lang) {
+      case "js": return javascript();
+      case "cpp": return cpp();
+      case "rust": return rust();
+      case "java": return java();
+      default: return cpp();
+    }
   };
 
   return (
@@ -525,50 +561,134 @@ export default function CreateTask() {
         </div>
 
         {codeTemplates && (
-          <div className="space-y-6 mt-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xl font-bold text-[#4E7AFF]">Шаблонные коды</h3>
-              <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
-                <SelectTrigger className="w-[180px] border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30">
-                  <SelectValue placeholder="Выберите язык" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cpp">C++</SelectItem>
-                  <SelectItem value="js">JavaScript</SelectItem>
-                  <SelectItem value="rust">Rust</SelectItem>
-                  <SelectItem value="java">Java</SelectItem>
-                </SelectContent>
-              </Select>
+          <>
+            <div className="space-y-6 mt-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-bold text-[#4E7AFF]">Шаблонные коды</h3>
+                <Select value={selectedLanguage} onValueChange={setSelectedLanguage}>
+                  <SelectTrigger className="w-[180px] border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30">
+                    <SelectValue placeholder="Выберите язык" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="cpp">C++</SelectItem>
+                    <SelectItem value="js">JavaScript</SelectItem>
+                    <SelectItem value="rust">Rust</SelectItem>
+                    <SelectItem value="java">Java</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="font-medium text-foreground">Базовый шаблон</Label>
+                  <div className="rounded-lg border border-color-[hsl(var(--border))] overflow-hidden">
+                    <SyntaxHighlighter
+                      language={selectedLanguage === "js" ? "javascript" : selectedLanguage}
+                      style={theme === 'dark' ? nightOwl : oneLight}
+                      customStyle={{ margin: 0, borderRadius: 0 }}
+                    >
+                      {getTemplateForLanguage(selectedLanguage)}
+                    </SyntaxHighlighter>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="font-medium text-foreground">Полный шаблон</Label>
+                  <div className="rounded-lg border border-color-[hsl(var(--border))] overflow-hidden">
+                    <SyntaxHighlighter
+                      language={selectedLanguage === "js" ? "javascript" : selectedLanguage}
+                      style={theme === 'dark' ? nightOwl : oneLight}
+                      customStyle={{ margin: 0, borderRadius: 0 }}
+                    >
+                      {getFullTemplateForLanguage(selectedLanguage)}
+                    </SyntaxHighlighter>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label className="font-medium text-foreground">Базовый шаблон</Label>
-                <div className="rounded-lg border border-color-[hsl(var(--border))] overflow-hidden">
-                  <SyntaxHighlighter
-                    language={selectedLanguage === "js" ? "javascript" : selectedLanguage}
-                    style={theme === 'dark' ? nightOwl : oneLight}
-                    customStyle={{ margin: 0, borderRadius: 0 }}
-                  >
-                    {getTemplateForLanguage(selectedLanguage)}
-                  </SyntaxHighlighter>
+            <div className="border-t border-color-[hsl(var(--border))] mt-6 pt-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2">
+                  <div className="animate-pulse-slow bg-[#4E7AFF]/10 p-2 rounded-lg">
+                    <Beaker className="w-6 h-6 text-[#4E7AFF]" />
+                  </div>
+                  <h2 className="text-xl font-bold text-[#4E7AFF]">
+                    Тесты для задачки
+                  </h2>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label className="font-medium text-foreground">Полный шаблон</Label>
-                <div className="rounded-lg border border-color-[hsl(var(--border))] overflow-hidden">
-                  <SyntaxHighlighter
-                    language={selectedLanguage === "js" ? "javascript" : selectedLanguage}
-                    style={theme === 'dark' ? nightOwl : oneLight}
-                    customStyle={{ margin: 0, borderRadius: 0 }}
-                  >
-                    {getFullTemplateForLanguage(selectedLanguage)}
-                  </SyntaxHighlighter>
+              <div className="grid grid-cols-1 md:grid-cols-[1fr,300px] gap-6">
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-color-[hsl(var(--border))] overflow-hidden">
+                    <CodeMirror
+                      value={testCode}
+                      height="auto"
+                      minHeight="250px"
+                      maxHeight="600px"
+                      theme={theme === 'dark' ? vscodeDark : basicLight}
+                      onChange={(value) => setTestCode(value)}
+                      extensions={[getLanguageExtension(testLanguage)]}
+                      className={`${theme === 'light' ? 'text-[15px]' : 'text-[15px]'}`}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-[#4E7AFF] mb-4">Parameters</h3>
+                    
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="font-medium text-foreground">
+                          Языковой режим для тестов
+                        </Label>
+                        <Select value={testLanguage} onValueChange={setTestLanguage}>
+                          <SelectTrigger className="w-full border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30">
+                            <SelectValue placeholder="Выберите язык" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="cpp">C++</SelectItem>
+                            <SelectItem value="js">JavaScript</SelectItem>
+                            <SelectItem value="rust">Rust</SelectItem>
+                            <SelectItem value="java">Java</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="font-medium text-foreground">
+                          Количество тестов
+                        </Label>
+                        <div className="flex items-center gap-4">
+                          <input
+                            type="range"
+                            min="1"
+                            max="20"
+                            value={testCount}
+                            onChange={(e) => setTestCount(Number(e.target.value))}
+                            className="flex-1 h-2 bg-[#4E7AFF]/20 rounded-lg appearance-none cursor-pointer accent-[#4E7AFF]"
+                          />
+                          <span className="text-foreground font-medium min-w-[2rem] text-center">
+                            {testCount}
+                          </span>
+                        </div>
+                      </div>
+
+                      <Button 
+                        className="w-full px-6 py-3 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105 text-center flex items-center justify-center gap-2"
+                        onClick={() => {}}
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        Тесткейсы
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>
