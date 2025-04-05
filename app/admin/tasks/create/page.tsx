@@ -505,6 +505,9 @@ export default function CreateTask() {
         throw new Error("Ошибка при тестировании");
       }
 
+      // Добавляем задержку в 3 секунды перед проверкой результатов
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
       const result: TestResult = await response.json();
       setTestResults(result);
 
@@ -521,6 +524,23 @@ export default function CreateTask() {
       setIsTestingCases(false);
     }
   };
+
+  // Добавляем useEffect для сохранения кода тестов в localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined' && isInitialized) {
+      localStorage.setItem(STORAGE_KEYS.testCode, testCode);
+    }
+  }, [testCode, isInitialized]);
+
+  // Добавляем загрузку кода тестов из localStorage при инициализации
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !isInitialized) {
+      const savedTestCode = localStorage.getItem(STORAGE_KEYS.testCode);
+      if (savedTestCode) {
+        setTestCode(savedTestCode);
+      }
+    }
+  }, [isInitialized]);
 
   const handleSaveTask = () => {
     const preview: TaskPreview = {
