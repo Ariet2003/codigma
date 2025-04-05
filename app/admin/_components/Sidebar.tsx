@@ -16,10 +16,11 @@ import {
   Settings,
   LogOut,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  BookOpen
 } from "lucide-react";
 
-const navigation = [
+const mainNavigation = [
   {
     name: "Дашборд",
     href: "/admin/dashboard",
@@ -31,6 +32,11 @@ const navigation = [
     icon: Trophy
   },
   {
+    name: "Задачи",
+    href: "/admin/tasks",
+    icon: BookOpen
+  },
+  {
     name: "Отчеты",
     href: "/admin/reports",
     icon: FileText
@@ -39,7 +45,10 @@ const navigation = [
     name: "Рейтинг",
     href: "/admin/rating",
     icon: Star
-  },
+  }
+];
+
+const managementNavigation = [
   {
     name: "Создать хакатон",
     href: "/admin/hackathons/create",
@@ -54,12 +63,15 @@ const navigation = [
     name: "Пользователи",
     href: "/admin/users",
     icon: Users
-  },
+  }
+];
+
+const settingsNavigation = [
   {
     name: "Настройки",
     href: "/admin/settings",
     icon: Settings
-  },
+  }
 ];
 
 export function Sidebar() {
@@ -94,31 +106,27 @@ export function Sidebar() {
             Админ панель
           </span>
         )}
-        <div className="flex items-center gap-2">
-          <ModeToggle />
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="rounded-lg p-1.5 hover:bg-muted transition-colors"
-          >
-            {isCollapsed ? (
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
-            ) : (
-              <ChevronLeft className="h-5 w-5 text-muted-foreground" />
-            )}
-          </button>
-        </div>
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="rounded-lg p-1.5 hover:bg-muted transition-colors"
+        >
+          {isCollapsed ? (
+            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+          ) : (
+            <ChevronLeft className="h-5 w-5 text-muted-foreground" />
+          )}
+        </button>
       </div>
       
       <nav className="flex-1 space-y-1 p-2">
-        {navigation.map((item) => {
-          const isActive = pathname === item.href;
-          return (
+        <div className="space-y-1">
+          {mainNavigation.map((item) => (
             <Link
               key={item.name}
               href={item.href}
               className={cn(
                 "group flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                isActive
+                pathname === item.href
                   ? "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
@@ -126,15 +134,66 @@ export function Sidebar() {
             >
               <item.icon className={cn(
                 "h-5 w-5 flex-shrink-0 transition-colors",
-                isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                pathname === item.href ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
               )} />
               {!isCollapsed && <span>{item.name}</span>}
             </Link>
-          );
-        })}
+          ))}
+        </div>
+
+        <div className="my-4 h-px bg-border" />
+
+        <div className="space-y-1">
+          {managementNavigation.map((item) => (
+            <Link
+              key={item.name}
+              href={item.href}
+              className={cn(
+                "group flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                pathname === item.href
+                  ? "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+              title={isCollapsed ? item.name : undefined}
+            >
+              <item.icon className={cn(
+                "h-5 w-5 flex-shrink-0 transition-colors",
+                pathname === item.href ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+              )} />
+              {!isCollapsed && <span>{item.name}</span>}
+            </Link>
+          ))}
+        </div>
+
+        <div className="my-4 h-px bg-border" />
+
+        <div className="space-y-1">
+          {settingsNavigation.map((item) => (
+            <Link
+              key={item.name}
+              href={item.href}
+              className={cn(
+                "group flex items-center gap-x-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                pathname === item.href
+                  ? "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+              title={isCollapsed ? item.name : undefined}
+            >
+              <item.icon className={cn(
+                "h-5 w-5 flex-shrink-0 transition-colors",
+                pathname === item.href ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+              )} />
+              {!isCollapsed && <span>{item.name}</span>}
+            </Link>
+          ))}
+        </div>
       </nav>
 
-      <div className="border-t p-2">
+      <div className="border-t p-2 space-y-2">
+        <div className="flex items-center gap-2 px-1.5 py-2">
+          <ModeToggle />
+        </div>
         <button
           onClick={handleLogout}
           className={cn(
