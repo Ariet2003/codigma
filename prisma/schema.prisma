@@ -111,3 +111,15 @@ model CodeTemplate {
   @@index([taskId])
   @@unique([taskId, language])
 }
+
+model Hackathon {
+  id          String   @id @default(uuid())
+  title       String
+  description String   @db.Text
+  startDate   DateTime
+  endDate     DateTime
+  isOpen      Boolean  @default(true)
+  tasks       Json     // Массив ID задач
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
