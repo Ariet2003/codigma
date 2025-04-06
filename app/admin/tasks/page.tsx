@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
+import { BookOpen } from 'lucide-react';
 
 type Task = {
   id: string;
@@ -145,7 +146,15 @@ export default function TasksPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Задачи</h1>
+      <div className="flex items-center gap-2">
+        <div className="animate-pulse-slow bg-[#4E7AFF]/10 p-2 rounded-lg">
+          <BookOpen className="w-6 h-6 text-[#4E7AFF]" />
+        </div>
+        <h1 className="text-2xl font-bold text-[#4E7AFF]">
+          Задачи
+        </h1>
+      </div>
+
         <Button onClick={() => router.push("/admin/tasks/create")}>
           Создать задачу
         </Button>

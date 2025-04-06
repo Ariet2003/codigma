@@ -30,7 +30,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { format, setHours, setMinutes } from "date-fns";
 import { ru } from "date-fns/locale";
-import { CalendarIcon, Trophy, X, Clock, Sparkles, ChevronLeft, ChevronRight, Eye, Edit, Wand2 } from "lucide-react";
+import { CalendarIcon, Trophy, X, Clock, Sparkles, ChevronLeft, ChevronRight, Eye, Edit, Wand2, Check, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSession } from "next-auth/react";
@@ -84,6 +84,9 @@ export default function CreateHackathon() {
   const [totalPages, setTotalPages] = useState(1);
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [createdHackathonId, setCreatedHackathonId] = useState<string>("");
+  const [isLinkCopied, setIsLinkCopied] = useState(false);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -287,15 +290,9 @@ export default function CreateHackathon() {
       }
 
       const hackathon = await response.json();
-      
-      toast({
-        title: "Успешно",
-        description: "Хакатон успешно создан",
-      });
-
-      resetForm();
+      setCreatedHackathonId(hackathon.id);
       setShowConfirmDialog(false);
-      router.push("/admin/hackathons/create");
+      setShowSuccessDialog(true);
     } catch (error) {
       console.error("Ошибка при создании хакатона:", error);
       toast({
@@ -303,6 +300,23 @@ export default function CreateHackathon() {
         title: "Ошибка",
         description: error instanceof Error ? error.message : "Произошла ошибка при создании хакатона",
       });
+    }
+  };
+
+  const handleCloseSuccess = () => {
+    setShowSuccessDialog(false);
+    resetForm();
+    router.push("/admin/hackathons/create");
+  };
+
+  const handleCopyLink = async () => {
+    const link = `${window.location.origin}/hackathons/${createdHackathonId}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setIsLinkCopied(true);
+      setTimeout(() => setIsLinkCopied(false), 2000);
+    } catch (err) {
+      console.error("Ошибка при копировании ссылки:", err);
     }
   };
 
@@ -828,6 +842,53 @@ export default function CreateHackathon() {
                       Создать хакатон
                     </>
                   )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Хакатон успешно создан</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                {!isOpen ? (
+                  <>
+                    <p>
+                      Закрытый хакатон создан и готов принимать заявки на участие. 
+                      Вы можете управлять заявками в разделе "Хакатоны".
+                    </p>
+                    <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
+                      <Input 
+                        readOnly 
+                        value={`${window.location.origin}/hackathons/${createdHackathonId}`}
+                        className="bg-transparent"
+                      />
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={handleCopyLink}
+                        className="shrink-0"
+                      >
+                        {isLinkCopied ? (
+                          <Check className="w-4 h-4 text-green-500" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <p>
+                    Открытый хакатон успешно создан и опубликован. 
+                    Участники могут присоединиться к нему.
+                  </p>
+                )}
+              </div>
+              <DialogFooter>
+                <Button onClick={handleCloseSuccess}>
+                  Закрыть
                 </Button>
               </DialogFooter>
             </DialogContent>
