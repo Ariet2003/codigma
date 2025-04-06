@@ -55,6 +55,11 @@ model User {
   role                    Role      @default(USER)
   accounts                Account[]
   sessions                Session[]
+  participations          HackathonParticipant[]
+  participationRequests   ParticipationRequest[]
+  totalScore             Float     @default(0) // Общий рейтинг пользователя
+  tasksCompleted         Int       @default(0) // Общее количество решенных задач
+  hackathonsParticipated Int       @default(0) // Количество хакатонов, в которых участвовал
 }
 
 model VerificationToken {
@@ -122,4 +127,80 @@ model Hackathon {
   tasks       Json     // Массив ID задач
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  participants HackathonParticipant[]
+  applications ParticipationRequest[]
+  submissions  TaskSubmission[]
+}
+
+// Участники хакатона
+model HackathonParticipant {
+  id          String    @id @default(uuid())
+  userId      String
+  hackathonId String
+  joinedAt    DateTime  @default(now())
+  totalScore  Float     @default(0)
+  user        User      @relation(fields: [userId], references: [id])
+  hackathon   Hackathon @relation(fields: [hackathonId], references: [id])
+  submissions TaskSubmission[]
+
+  @@unique([userId, hackathonId])
+  @@index([hackathonId])
+  @@index([userId])
+}
+
+// Заявки на участие в закрытом хакатоне
+model ParticipationRequest {
+  id          String    @id @default(uuid())
+  userId      String
+  hackathonId String
+  status      RequestStatus @default(PENDING)
+  message     String?   @db.Text // Сообщение от пользователя
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id])
+  hackathon   Hackathon @relation(fields: [hackathonId], references: [id])
+
+  @@unique([userId, hackathonId])
+  @@index([hackathonId])
+  @@index([userId])
+}
+
+// Статус заявки на участие
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Решения задач участниками
+model TaskSubmission {
+  id            String    @id @default(uuid())
+  participantId String
+  hackathonId   String
+  taskId        String
+  code          String    @db.Text
+  language      String
+  status        SubmissionStatus
+  score         Float     @default(0)
+  feedback      String?   @db.Text
+  memory        Int       @default(0)  // Использованная память в байтах
+  executionTime Int       @default(0)  // Время выполнения в миллисекундах
+  submittedAt   DateTime  @default(now()) // Время отправки решения
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  participant   HackathonParticipant @relation(fields: [participantId], references: [id])
+  hackathon     Hackathon @relation(fields: [hackathonId], references: [id])
+
+  @@index([participantId])
+  @@index([hackathonId])
+  @@index([taskId])
+}
+
+// Статус решения
+enum SubmissionStatus {
+  PENDING
+  PROCESSING
+  ACCEPTED
+  REJECTED
+  ERROR
 }

@@ -37,7 +37,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import MDEditor from '@uiw/react-md-editor';
 import { useTheme } from "next-themes";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { Toaster } from "@/components/ui/toaster";
 import { DragDropContext, Droppable, Draggable, DropResult, DroppableProvided, DraggableProvided } from '@hello-pangea/dnd';
 
@@ -61,7 +61,12 @@ declare module "next-auth" {
   }
 }
 
-export default function CreateHackathon() {
+interface CreateHackathonProps {
+  isEditing?: boolean;
+  hackathonData?: any;
+}
+
+export default function CreateHackathon({ isEditing = false, hackathonData }: CreateHackathonProps) {
   const { theme } = useTheme();
   const { data: session } = useSession();
   const router = useRouter();
@@ -103,7 +108,7 @@ export default function CreateHackathon() {
 
   // Загрузка сохраненных данных из localStorage при монтировании компонента
   useEffect(() => {
-    if (!isClient) return;
+    if (!isClient || isEditing) return;
 
     try {
       const savedTitle = localStorage.getItem("hackathon_title");
@@ -144,7 +149,7 @@ export default function CreateHackathon() {
     } catch (error) {
       console.error("Ошибка при загрузке данных из localStorage:", error);
     }
-  }, [isClient]);
+  }, [isClient, isEditing]);
 
   useEffect(() => {
     const fetchTasks = async () => {
@@ -176,7 +181,7 @@ export default function CreateHackathon() {
 
   // Сохранение в localStorage при изменении значений
   useEffect(() => {
-    if (!isClient) return;
+    if (!isClient || isEditing) return;
 
     try {
       if (title) localStorage.setItem("hackathon_title", title);
@@ -190,7 +195,7 @@ export default function CreateHackathon() {
     } catch (error) {
       console.error("Ошибка при сохранении данных в localStorage:", error);
     }
-  }, [isClient, title, description, startDate, endDate, startTime, endTime, isOpen, selectedTasks]);
+  }, [isClient, isEditing, title, description, startDate, endDate, startTime, endTime, isOpen, selectedTasks]);
 
   // Очистка localStorage после успешного создания хакатона
   const clearLocalStorage = () => {
@@ -401,6 +406,103 @@ export default function CreateHackathon() {
     setSelectedTasks(items);
   };
 
+  // Заполняем форму данными при редактировании
+  useEffect(() => {
+    if (isEditing && hackathonData) {
+      setTitle(hackathonData.title);
+      setDescription(hackathonData.description);
+      setStartDate(new Date(hackathonData.startDate));
+      setEndDate(new Date(hackathonData.endDate));
+      setStartTime(format(new Date(hackathonData.startDate), "HH:mm"));
+      setEndTime(format(new Date(hackathonData.endDate), "HH:mm"));
+      setIsOpen(hackathonData.isOpen);
+      setSelectedTasks(hackathonData.tasks.map((taskId: string) => {
+        const task = availableTasks.find(t => t.id === taskId);
+        return task || { id: taskId, title: "Загрузка...", difficulty: "medium" };
+      }));
+    }
+  }, [isEditing, hackathonData, availableTasks]);
+
+  const handleUpdateHackathon = async () => {
+    if (!startDate || !endDate) {
+      toast({
+        variant: "destructive",
+        title: "Ошибка",
+        description: "Не выбраны даты проведения хакатона",
+      });
+      return;
+    }
+
+    if (!title.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Ошибка",
+        description: "Введите название хакатона",
+      });
+      return;
+    }
+
+    if (!description.trim()) {
+      toast({
+        variant: "destructive",
+        title: "Ошибка",
+        description: "Введите описание хакатона",
+      });
+      return;
+    }
+
+    if (selectedTasks.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Ошибка",
+        description: "Выберите хотя бы одну задачу",
+      });
+      return;
+    }
+
+    try {
+      const [startHours, startMinutes] = startTime.split(":").map(Number);
+      const [endHours, endMinutes] = endTime.split(":").map(Number);
+
+      const startDateTime = new Date(startDate);
+      startDateTime.setUTCHours(startHours, startMinutes, 0, 0);
+
+      const endDateTime = new Date(endDate);
+      endDateTime.setUTCHours(endHours, endMinutes, 0, 0);
+
+      const taskIds = selectedTasks.map(task => task.id);
+
+      const response = await fetch(`/api/hackathons/${hackathonData.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: title.trim(),
+          description: description.trim(),
+          startDate: startDateTime.toISOString(),
+          endDate: endDateTime.toISOString(),
+          isOpen,
+          tasks: taskIds,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Ошибка при обновлении хакатона");
+      }
+
+      setShowSuccessDialog(true);
+    } catch (error) {
+      console.error("Ошибка при обновлении хакатона:", error);
+      toast({
+        variant: "destructive",
+        title: "Ошибка",
+        description: error instanceof Error ? error.message : "Произошла ошибка при обновлении хакатона",
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen p-6 space-y-6 max-w-screen-2xl mx-auto">
       {isClient && (
@@ -411,7 +513,7 @@ export default function CreateHackathon() {
               <Trophy className="w-6 h-6 text-[#4E7AFF]" />
             </div>
             <h1 className="text-2xl font-bold text-[#4E7AFF]">
-              Создать хакатон
+              {isEditing ? "Редактировать хакатон" : "Создать хакатон"}
             </h1>
           </div>
 
@@ -768,12 +870,12 @@ export default function CreateHackathon() {
 
             <div className="flex justify-center">
               <Button
-                onClick={() => setShowConfirmDialog(true)}
+                onClick={() => isEditing ? setShowConfirmDialog(true) : handleCreateHackathon()}
                 disabled={!isFormValid || isLoading}
                 className="px-6 py-6 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105 flex items-center justify-center gap-2"
               >
                 <Sparkles className="w-5 h-5" />
-                Создать хакатон
+                {isEditing ? "Сохранить изменения" : "Создать хакатон"}
               </Button>
             </div>
           </div>
@@ -781,7 +883,9 @@ export default function CreateHackathon() {
           <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
               <DialogHeader>
-                <DialogTitle>Подтверждение создания хакатона</DialogTitle>
+                <DialogTitle>
+                  {isEditing ? "Подтверждение изменений" : "Подтверждение создания хакатона"}
+                </DialogTitle>
               </DialogHeader>
               <div className="space-y-4 overflow-y-auto pr-6 -mr-6">
                 <div>
@@ -827,19 +931,19 @@ export default function CreateHackathon() {
                   Вернуться к редактированию
                 </Button>
                 <Button
-                  onClick={handleConfirmCreate}
+                  onClick={isEditing ? handleUpdateHackathon : handleConfirmCreate}
                   disabled={isLoading}
                   className="gap-2"
                 >
                   {isLoading ? (
                     <>
                       <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      Создание...
+                      {isEditing ? "Сохранение..." : "Создание..."}
                     </>
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4" />
-                      Создать хакатон
+                      {isEditing ? "Сохранить изменения" : "Создать хакатон"}
                     </>
                   )}
                 </Button>
@@ -850,45 +954,58 @@ export default function CreateHackathon() {
           <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>Хакатон успешно создан</DialogTitle>
+                <DialogTitle>
+                  {isEditing ? "Хакатон успешно обновлен" : "Хакатон успешно создан"}
+                </DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
-                {!isOpen ? (
-                  <>
-                    <p>
-                      Закрытый хакатон создан и готов принимать заявки на участие. 
-                      Вы можете управлять заявками в разделе "Хакатоны".
-                    </p>
-                    <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
-                      <Input 
-                        readOnly 
-                        value={`${window.location.origin}/hackathons/${createdHackathonId}`}
-                        className="bg-transparent"
-                      />
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={handleCopyLink}
-                        className="shrink-0"
-                      >
-                        {isLinkCopied ? (
-                          <Check className="w-4 h-4 text-green-500" />
-                        ) : (
-                          <Copy className="w-4 h-4" />
-                        )}
-                      </Button>
-                    </div>
-                  </>
+                {isEditing ? (
+                  <p>Изменения успешно сохранены.</p>
                 ) : (
-                  <p>
-                    Открытый хакатон успешно создан и опубликован. 
-                    Участники могут присоединиться к нему.
-                  </p>
+                  !isOpen ? (
+                    <>
+                      <p>
+                        Закрытый хакатон создан и готов принимать заявки на участие. 
+                        Вы можете управлять заявками в разделе "Хакатоны".
+                      </p>
+                      <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
+                        <Input 
+                          readOnly 
+                          value={`${window.location.origin}/hackathons/${createdHackathonId}`}
+                          className="bg-transparent"
+                        />
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={handleCopyLink}
+                          className="shrink-0"
+                        >
+                          {isLinkCopied ? (
+                            <Check className="w-4 h-4 text-green-500" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <p>
+                      Открытый хакатон успешно создан и опубликован. 
+                      Участники могут присоединиться к нему.
+                    </p>
+                  )
                 )}
               </div>
               <DialogFooter>
-                <Button onClick={handleCloseSuccess}>
-                  Закрыть
+                <Button onClick={() => {
+                  setShowSuccessDialog(false);
+                  if (isEditing) {
+                    router.push("/admin/hackathons");
+                  } else {
+                    handleCloseSuccess();
+                  }
+                }}>
+                  {isEditing ? "Вернуться к списку" : "Закрыть"}
                 </Button>
               </DialogFooter>
             </DialogContent>
