@@ -416,12 +416,9 @@ export default function CreateHackathon({ isEditing = false, hackathonData }: Cr
       setStartTime(format(new Date(hackathonData.startDate), "HH:mm"));
       setEndTime(format(new Date(hackathonData.endDate), "HH:mm"));
       setIsOpen(hackathonData.isOpen);
-      setSelectedTasks(hackathonData.tasks.map((taskId: string) => {
-        const task = availableTasks.find(t => t.id === taskId);
-        return task || { id: taskId, title: "Загрузка...", difficulty: "medium" };
-      }));
+      setSelectedTasks(hackathonData.tasks);
     }
-  }, [isEditing, hackathonData, availableTasks]);
+  }, [isEditing, hackathonData]);
 
   const handleUpdateHackathon = async () => {
     if (!startDate || !endDate) {

@@ -235,7 +235,11 @@ export default function TasksPage() {
               </TableRow>
             ) : (
               tasks.map((task) => (
-                <TableRow key={task.id}>
+                <TableRow 
+                  key={task.id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => router.push(`/admin/tasks/${task.id}`)}
+                >
                   <TableCell className="font-medium">{task.title}</TableCell>
                   <TableCell>
                     <span className={getDifficultyColor(task.difficulty)}>
@@ -254,7 +258,10 @@ export default function TasksPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => router.push("/admin/tasks/" + task.id + "/edit")}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push("/admin/tasks/" + task.id + "/edit");
+                        }}
                       >
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -262,7 +269,8 @@ export default function TasksPage() {
                         variant="ghost"
                         size="icon"
                         className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setTaskToDelete(task.id);
                           setShowDeleteDialog(true);
                         }}

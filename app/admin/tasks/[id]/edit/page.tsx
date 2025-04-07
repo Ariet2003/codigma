@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -11,9 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import ReactMarkdown from "react-markdown";
 import { 
   FileText, 
@@ -25,21 +25,13 @@ import {
   X,
   Beaker,
   Sparkles,
-  Save
+  Save,
+  ChevronLeft,
 } from "lucide-react";
-import { generateProblemTemplates } from "@/app/lib/codeGenerator";
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { nightOwl } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useTheme } from "next-themes";
-import CodeMirror from '@uiw/react-codemirror';
-import { javascript } from '@codemirror/lang-javascript';
-import { cpp } from '@codemirror/lang-cpp';
-import { rust } from '@codemirror/lang-rust';
-import { java } from '@codemirror/lang-java';
-import { vscodeDark } from '@uiw/codemirror-theme-vscode';
-import { basicLight } from '@uiw/codemirror-theme-basic';
-import { FileCode2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -48,6 +40,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import CodeMirror from '@uiw/react-codemirror';
+import { javascript } from '@codemirror/lang-javascript';
+import { cpp } from '@codemirror/lang-cpp';
+import { rust } from '@codemirror/lang-rust';
+import { java } from '@codemirror/lang-java';
+import { vscodeDark } from '@uiw/codemirror-theme-vscode';
+import { basicLight } from '@uiw/codemirror-theme-basic';
 
 type TestResult = {
   tests_count: number;
@@ -88,37 +87,20 @@ type CodeTemplates = {
   fullJava: string;
 };
 
-type TaskPreview = {
-  title: string;
-  difficulty: string;
-  description: string;
-  function_name: string;
-  input_params: Parameter[];
-  output_params: Parameter[];
-  templates: {
-    cpp: {
-      base: string;
-      full: string;
-    };
-    js: {
-      base: string;
-      full: string;
-    };
-    rust: {
-      base: string;
-      full: string;
-    };
-    java: {
-      base: string;
-      full: string;
-    };
-  };
-  test_cases: TestCase[];
+const STORAGE_KEYS = {
+  title: 'edit_task_title',
+  difficulty: 'edit_task_difficulty',
+  description: 'edit_task_description',
+  showMarkdown: 'edit_task_show_markdown',
+  testCases: 'edit_task_test_cases',
+  testResults: 'edit_task_test_results'
 };
 
 export default function EditTask() {
   const params = useParams();
   const taskId = params.id as string;
+  const router = useRouter();
+  const { theme } = useTheme();
 
   const [title, setTitle] = useState("");
   const [difficulty, setDifficulty] = useState("");
@@ -126,67 +108,96 @@ export default function EditTask() {
   const [showMarkdown, setShowMarkdown] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isLoadingTask, setIsLoadingTask] = useState(true);
+  const [isGeneratingTests, setIsGeneratingTests] = useState(false);
+  const [isTestingCases, setIsTestingCases] = useState(false);
+  const [showResult, setShowResult] = useState(false);
+  const [saveResult, setSaveResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  // Состояния для генератора шаблонного кода
+  // Данные только для просмотра
   const [functionName, setFunctionName] = useState("");
-  const [inputParams, setInputParams] = useState<Parameter[]>([
-    { id: crypto.randomUUID(), name: "", type: "" }
-  ]);
-  const [outputParams, setOutputParams] = useState<Parameter[]>([
-    { id: crypto.randomUUID(), name: "", type: "" }
-  ]);
-
-  const [selectedLanguage, setSelectedLanguage] = useState<string>("cpp");
+  const [inputParams, setInputParams] = useState<Parameter[]>([]);
+  const [outputParams, setOutputParams] = useState<Parameter[]>([]);
   const [codeTemplates, setCodeTemplates] = useState<CodeTemplates | null>(null);
-  const { theme } = useTheme();
-
+  const [selectedLanguage, setSelectedLanguage] = useState<string>("cpp");
+  const [testCases, setTestCases] = useState<TestCase[]>([]);
+  const [testResults, setTestResults] = useState<TestResult | null>(null);
   const [testCount, setTestCount] = useState<number>(10);
   const [testLanguage, setTestLanguage] = useState<string>("cpp");
   const [testCode, setTestCode] = useState<string>("");
-  const [testCases, setTestCases] = useState<TestCase[]>([]);
-  const [isGeneratingTests, setIsGeneratingTests] = useState(false);
-  const [testResults, setTestResults] = useState<TestResult | null>(null);
-  const [isTestingCases, setIsTestingCases] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
-  const [taskPreview, setTaskPreview] = useState<TaskPreview | null>(null);
-  const [showResult, setShowResult] = useState(false);
-  const [saveResult, setSaveResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [isLoadingTask, setIsLoadingTask] = useState(true);
+  const [isTestsModified, setIsTestsModified] = useState(false);
+  const [areAllTestsPassing, setAreAllTestsPassing] = useState(false);
 
   // Загрузка данных задачи
   useEffect(() => {
     const loadTask = async () => {
       try {
+        // Сначала очищаем предыдущие данные
+        Object.values(STORAGE_KEYS).forEach(key => {
+          localStorage.removeItem(key);
+        });
+
         const response = await fetch(`/api/tasks/${taskId}`);
         if (!response.ok) {
           throw new Error("Ошибка при загрузке задачи");
         }
         const task = await response.json();
         
-        // Заполняем все поля данными из БД
+        // Преобразуем параметры и добавляем id
+        const inputParamsWithIds = task.inputParams.map((param: any) => ({
+          id: crypto.randomUUID(),
+          name: param.name,
+          type: param.type
+        }));
+
+        const outputParamsWithIds = task.outputParams.map((param: any) => ({
+          id: crypto.randomUUID(),
+          name: param.name,
+          type: param.type
+        }));
+
+        // Создаем объект шаблонов кода из полученных данных
+        const templates = {
+          cppTemplate: task.codeTemplates.find((t: any) => t.language === 'cpp')?.baseTemplate || '',
+          jsTemplate: task.codeTemplates.find((t: any) => t.language === 'js')?.baseTemplate || '',
+          rustTemplate: task.codeTemplates.find((t: any) => t.language === 'rust')?.baseTemplate || '',
+          javaTemplate: task.codeTemplates.find((t: any) => t.language === 'java')?.baseTemplate || '',
+          fullCpp: task.codeTemplates.find((t: any) => t.language === 'cpp')?.fullTemplate || '',
+          fullJs: task.codeTemplates.find((t: any) => t.language === 'js')?.fullTemplate || '',
+          fullRust: task.codeTemplates.find((t: any) => t.language === 'rust')?.fullTemplate || '',
+          fullJava: task.codeTemplates.find((t: any) => t.language === 'java')?.fullTemplate || ''
+        };
+
+        // Преобразуем тесткейсы
+        const formattedTestCases = task.testCases.map((test: any) => ({
+          input: test.input,
+          expected_output: test.expectedOutput,
+          isCorrect: undefined
+        }));
+
+        // Сохраняем данные в localStorage
+        localStorage.setItem(STORAGE_KEYS.title, task.title);
+        localStorage.setItem(STORAGE_KEYS.difficulty, task.difficulty);
+        localStorage.setItem(STORAGE_KEYS.description, task.description);
+        localStorage.setItem(STORAGE_KEYS.testCases, JSON.stringify(formattedTestCases));
+        
+        // Устанавливаем состояния
         setTitle(task.title);
         setDifficulty(task.difficulty);
         setDescription(task.description);
-        setFunctionName(task.function_name);
-        setInputParams(task.input_params.map((param: any) => ({
-          ...param,
-          id: crypto.randomUUID()
-        })));
-        setOutputParams(task.output_params.map((param: any) => ({
-          ...param,
-          id: crypto.randomUUID()
-        })));
-        setCodeTemplates({
-          cppTemplate: task.templates.cpp.base,
-          jsTemplate: task.templates.js.base,
-          rustTemplate: task.templates.rust.base,
-          javaTemplate: task.templates.java.base,
-          fullCpp: task.templates.cpp.full,
-          fullJs: task.templates.js.full,
-          fullRust: task.templates.rust.full,
-          fullJava: task.templates.java.full
-        });
-        setTestCases(task.test_cases);
+        setFunctionName(task.functionName);
+        setInputParams(inputParamsWithIds);
+        setOutputParams(outputParamsWithIds);
+        setCodeTemplates(templates);
+        setTestCases(formattedTestCases);
+        setSelectedLanguage('cpp');
+        setTestLanguage('cpp');
+        setTestCount(10);
+        
+        // Устанавливаем начальный код для тестов
+        const initialTestCode = templates.cppTemplate;
+        setTestCode(initialTestCode);
+
         setIsInitialized(true);
       } catch (error) {
         console.error("Ошибка при загрузке задачи:", error);
@@ -195,41 +206,53 @@ export default function EditTask() {
       }
     };
 
-    loadTask();
+    if (taskId) {
+      loadTask();
+    }
+
+    // Очистка localStorage при размонтировании компонента
+    return () => {
+      Object.values(STORAGE_KEYS).forEach(key => {
+        localStorage.removeItem(key);
+      });
+    };
   }, [taskId]);
 
-  // Функции для управления параметрами
-  const addInputParam = () => {
-    setInputParams([...inputParams, { id: crypto.randomUUID(), name: "", type: "" }]);
-  };
+  // Загрузка данных из localStorage при обновлении страницы
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !isInitialized) {
+      const savedTitle = localStorage.getItem(STORAGE_KEYS.title);
+      const savedDifficulty = localStorage.getItem(STORAGE_KEYS.difficulty);
+      const savedDescription = localStorage.getItem(STORAGE_KEYS.description);
+      const savedShowMarkdown = localStorage.getItem(STORAGE_KEYS.showMarkdown);
+      const savedTestCases = localStorage.getItem(STORAGE_KEYS.testCases);
+      const savedTestResults = localStorage.getItem(STORAGE_KEYS.testResults);
 
-  const addOutputParam = () => {
-    setOutputParams([...outputParams, { id: crypto.randomUUID(), name: "", type: "" }]);
-  };
-
-  const removeInputParam = (id: string) => {
-    if (inputParams.length > 1) {
-      setInputParams(inputParams.filter(param => param.id !== id));
+      // Проверяем наличие данных в localStorage перед установкой состояний
+      if (savedTitle && savedDifficulty && savedDescription) {
+        setTitle(savedTitle);
+        setDifficulty(savedDifficulty);
+        setDescription(savedDescription);
+        if (savedShowMarkdown) setShowMarkdown(savedShowMarkdown === 'true');
+        if (savedTestCases) setTestCases(JSON.parse(savedTestCases));
+        if (savedTestResults) setTestResults(JSON.parse(savedTestResults));
+      }
     }
-  };
+  }, [isInitialized]);
 
-  const removeOutputParam = (id: string) => {
-    if (outputParams.length > 1) {
-      setOutputParams(outputParams.filter(param => param.id !== id));
+  // Сохраняем изменения в localStorage при изменении состояний
+  useEffect(() => {
+    if (typeof window !== 'undefined' && isInitialized) {
+      localStorage.setItem(STORAGE_KEYS.title, title);
+      localStorage.setItem(STORAGE_KEYS.difficulty, difficulty);
+      localStorage.setItem(STORAGE_KEYS.description, description);
+      localStorage.setItem(STORAGE_KEYS.showMarkdown, showMarkdown.toString());
+      localStorage.setItem(STORAGE_KEYS.testCases, JSON.stringify(testCases));
+      if (testResults) {
+        localStorage.setItem(STORAGE_KEYS.testResults, JSON.stringify(testResults));
+      }
     }
-  };
-
-  const updateInputParam = (id: string, field: 'name' | 'type', value: string) => {
-    setInputParams(inputParams.map(param =>
-      param.id === id ? { ...param, [field]: value } : param
-    ));
-  };
-
-  const updateOutputParam = (id: string, field: 'name' | 'type', value: string) => {
-    setOutputParams(outputParams.map(param =>
-      param.id === id ? { ...param, [field]: value } : param
-    ));
-  };
+  }, [title, difficulty, description, showMarkdown, testCases, isInitialized, testResults]);
 
   const generateMarkdown = async () => {
     try {
@@ -253,20 +276,6 @@ export default function EditTask() {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const generateTemplates = () => {
-    const metadata = {
-      task_name: title,
-      difficulty: difficulty,
-      description: description,
-      function_name: functionName,
-      inputs: inputParams.map(({ name, type }) => ({ name, type })),
-      outputs: outputParams.map(({ name, type }) => ({ name, type }))
-    };
-
-    const templates = generateProblemTemplates(metadata);
-    setCodeTemplates(templates);
   };
 
   const getLanguageLabel = (lang: string) => {
@@ -301,35 +310,14 @@ export default function EditTask() {
     }
   };
 
-  const getTestTemplate = (lang: string) => {
-    let template = getTemplateForLanguage(lang);
-    const lines = template.split('\n');
-    if (lines.length < 10) {
-      template += '\n'.repeat(12 - lines.length);
-    }
-    return template;
-  };
-
-  useEffect(() => {
-    setTestCode(getTestTemplate(testLanguage));
-  }, [testLanguage, codeTemplates]);
-
-  const getLanguageExtension = (lang: string) => {
-    switch (lang) {
-      case "js": return javascript();
-      case "cpp": return cpp();
-      case "rust": return rust();
-      case "java": return java();
-      default: return cpp();
-    }
-  };
-
   const extractJson = (testsStr: string): string => {
+    // Попытка извлечь блок, обрамлённый ```json ... ```
     const match = testsStr.match(/```json\s*(\[[\s\S]*\])\s*```/);
     if (match) {
       return match[1];
     }
 
+    // Если блок с ```json не найден, пытаемся извлечь содержимое от первой '[' до последней ']'
     const start = testsStr.indexOf('[');
     const end = testsStr.lastIndexOf(']');
     if (start !== -1 && end !== -1 && start < end) {
@@ -348,10 +336,11 @@ export default function EditTask() {
       const inputData = test.input || {};
       const lines: string[] = [];
 
+      // Форматируем поле "input"
       Object.entries(inputData).forEach(([key, value]) => {
         if (Array.isArray(value)) {
-          lines.push(String(value.length));
-          lines.push(value.map(String).join(' '));
+          lines.push(String(value.length)); // Первая строка: количество элементов
+          lines.push(value.map(String).join(' ')); // Вторая строка: элементы через пробел
         } else {
           lines.push(String(value));
         }
@@ -359,6 +348,7 @@ export default function EditTask() {
 
       let formattedInput = lines.join('\n');
 
+      // Обрабатываем поле "expected_output"
       let expectedOutput = test.expected_output;
       if (typeof expectedOutput === 'object' && expectedOutput !== null) {
         expectedOutput = Object.values(expectedOutput)[0];
@@ -378,6 +368,7 @@ export default function EditTask() {
 
   const generateTests = async () => {
     setIsGeneratingTests(true);
+    // Сбрасываем результаты тестов при генерации новых
     setTestResults(null);
     try {
       const metadata = {
@@ -408,6 +399,7 @@ export default function EditTask() {
 
       const data = await response.json();
       const parsedTests = parseTests(data.tests);
+      // При генерации новых тестов сбрасываем их статус
       setTestCases(parsedTests.map(test => ({ ...test, isCorrect: undefined })));
     } catch (error) {
       console.error("Ошибка:", error);
@@ -416,6 +408,31 @@ export default function EditTask() {
     }
   };
 
+  const getLanguageExtension = (lang: string) => {
+    switch (lang) {
+      case "js": return javascript();
+      case "cpp": return cpp();
+      case "rust": return rust();
+      case "java": return java();
+      default: return cpp();
+    }
+  };
+
+  // Обновляем обработчик изменения тесткейсов
+  const handleTestCaseChange = (index: number, field: 'input' | 'expected_output', value: string) => {
+    const newTestCases = [...testCases];
+    newTestCases[index] = {
+      ...newTestCases[index],
+      [field]: value.trim(),  // Добавляем trim() при сохранении значения
+      isCorrect: undefined
+    };
+    setTestCases(newTestCases);
+    setIsTestsModified(true);
+    setAreAllTestsPassing(false);
+    setTestResults(null);  // Сбрасываем результаты предыдущего тестирования
+  };
+
+  // Обновляем функцию runTestCases
   const runTestCases = async () => {
     setIsTestingCases(true);
     try {
@@ -427,9 +444,11 @@ export default function EditTask() {
         source_code: sourceCode,
         testcases: testCases.map(tc => ({
           stdin: tc.input,
-          expected_output: String(tc.expected_output)
+          expected_output: String(tc.expected_output).trim()  // Добавляем trim() для удаления лишних пробелов
         }))
       };
+
+      console.log("Отправляемые тесты:", data.testcases);
 
       const response = await fetch("/api/judge", {
         method: "POST",
@@ -446,51 +465,71 @@ export default function EditTask() {
       await new Promise(resolve => setTimeout(resolve, 3000));
 
       const result: TestResult = await response.json();
-      setTestResults(result);
+      console.log("Результаты тестирования:", result);
 
+      // Обновляем состояние тесткейсов с результатами
       const updatedTestCases = testCases.map((tc, idx) => ({
         ...tc,
         isCorrect: !result.incorrect_test_indexes.includes(idx)
       }));
       setTestCases(updatedTestCases);
+      
+      // Проверяем, все ли тесты прошли успешно
+      const allTestsPassing = result.incorrect_test_indexes.length === 0;
+      setAreAllTestsPassing(allTestsPassing);
+      setTestResults(result);
+
+      // Если все тесты пройдены, сбрасываем флаг модификации
+      if (allTestsPassing) {
+        setIsTestsModified(false);
+      }
 
     } catch (error) {
       console.error("Ошибка:", error);
+      setAreAllTestsPassing(false);
     } finally {
       setIsTestingCases(false);
     }
   };
 
-  const handleUpdateTask = async () => {
-    const taskData: TaskPreview = {
-      title,
-      difficulty,
-      description,
-      function_name: functionName,
-      input_params: inputParams,
-      output_params: outputParams,
-      templates: {
-        cpp: {
-          base: codeTemplates?.cppTemplate || "",
-          full: codeTemplates?.fullCpp || ""
-        },
-        js: {
-          base: codeTemplates?.jsTemplate || "",
-          full: codeTemplates?.fullJs || ""
-        },
-        rust: {
-          base: codeTemplates?.rustTemplate || "",
-          full: codeTemplates?.fullRust || ""
-        },
-        java: {
-          base: codeTemplates?.javaTemplate || "",
-          full: codeTemplates?.fullJava || ""
-        }
-      },
-      test_cases: testCases
-    };
+  // Добавляем обработчик изменения языка тестов
+  const handleTestLanguageChange = (newLanguage: string) => {
+    setTestLanguage(newLanguage);
+    // Обновляем код в редакторе на базовый шаблон выбранного языка
+    const newTemplate = getTemplateForLanguage(newLanguage);
+    setTestCode(newTemplate);
+  };
 
+  const handleSaveTask = async () => {
     try {
+      const taskData = {
+        title,
+        difficulty,
+        description,
+        function_name: functionName,
+        input_params: inputParams,
+        output_params: outputParams,
+        templates: {
+          cpp: {
+            base: codeTemplates?.cppTemplate || "",
+            full: codeTemplates?.fullCpp || ""
+          },
+          js: {
+            base: codeTemplates?.jsTemplate || "",
+            full: codeTemplates?.fullJs || ""
+          },
+          rust: {
+            base: codeTemplates?.rustTemplate || "",
+            full: codeTemplates?.fullRust || ""
+          },
+          java: {
+            base: codeTemplates?.javaTemplate || "",
+            full: codeTemplates?.fullJava || ""
+          }
+        },
+        test_cases: testCases
+      };
+
       const response = await fetch(`/api/tasks/${taskId}`, {
         method: "PUT",
         headers: {
@@ -507,7 +546,7 @@ export default function EditTask() {
 
       setSaveResult({
         success: true,
-        message: "Изменения успешно сохранены!"
+        message: "Задача успешно обновлена!"
       });
       setShowResult(true);
     } catch (error) {
@@ -524,6 +563,17 @@ export default function EditTask() {
     setShowResult(false);
   };
 
+  const clearLocalStorage = () => {
+    Object.values(STORAGE_KEYS).forEach(key => {
+      localStorage.removeItem(key);
+    });
+  };
+
+  const handleBackClick = () => {
+    clearLocalStorage();
+    router.push('/admin/tasks');
+  };
+
   if (isLoadingTask) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -537,6 +587,14 @@ export default function EditTask() {
       <div className="min-h-screen p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleBackClick}
+              className="hover:bg-transparent"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </Button>
             <div className="animate-pulse-slow bg-[#4E7AFF]/10 p-2 rounded-lg">
               <FileText className="w-6 h-6 text-[#4E7AFF]" />
             </div>
@@ -545,8 +603,9 @@ export default function EditTask() {
             </h1>
           </div>
           <Button
-            onClick={handleUpdateTask}
-            className="px-6 py-3 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105 flex items-center gap-2"
+            onClick={handleSaveTask}
+            disabled={isTestsModified && !areAllTestsPassing}
+            className="px-6 py-3 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Save className="w-4 h-4" />
             Сохранить изменения
@@ -662,7 +721,7 @@ export default function EditTask() {
                 <FileText className="w-6 h-6 text-[#4E7AFF]" />
               </div>
               <h2 className="text-xl font-bold text-[#4E7AFF]">
-                Генератор шаблонного кода
+                Информация о задаче
               </h2>
             </div>
 
@@ -676,13 +735,9 @@ export default function EditTask() {
                     Название функции
                   </Label>
                 </div>
-                <Input
-                  id="functionName"
-                  placeholder="Введите название функции"
-                  className="border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30"
-                  value={functionName}
-                  onChange={(e) => setFunctionName(e.target.value)}
-                />
+                <div className="h-10 flex items-center px-3 border border-color-[hsl(var(--border))] rounded-md bg-transparent text-foreground">
+                  {functionName}
+                </div>
               </div>
 
               <div className="space-y-4">
@@ -693,52 +748,17 @@ export default function EditTask() {
                   <div className="space-y-2 rounded-lg border border-color-[hsl(var(--border))] p-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-foreground">Входные параметры</span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="px-4 py-2 rounded-lg border border-[#4E7AFF] text-[#4E7AFF] dark:text-white font-medium transition-all hover:bg-[#4E7AFF]/10 hover:scale-105"
-                        onClick={addInputParam}
-                      >
-                        Добавить параметр
-                      </Button>
                     </div>
                     
                     <div className="space-y-3">
                       {inputParams.map((param) => (
                         <div key={param.id} className="flex gap-4 items-center">
-                          <Input
-                            placeholder="Название параметра"
-                            className="flex-1 border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30"
-                            value={param.name}
-                            onChange={(e) => updateInputParam(param.id, 'name', e.target.value)}
-                          />
-                          <Select
-                            value={param.type}
-                            onValueChange={(value) => updateInputParam(param.id, 'type', value)}
-                          >
-                            <SelectTrigger className="w-[180px] border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30">
-                              <SelectValue placeholder="Выберите тип" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="int">int</SelectItem>
-                              <SelectItem value="float">float</SelectItem>
-                              <SelectItem value="string">string</SelectItem>
-                              <SelectItem value="bool">bool</SelectItem>
-                              <SelectItem value="list<int>">list&lt;int&gt;</SelectItem>
-                              <SelectItem value="list<float>">list&lt;float&gt;</SelectItem>
-                              <SelectItem value="list<string>">list&lt;string&gt;</SelectItem>
-                              <SelectItem value="list<bool>">list&lt;bool&gt;</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-[#4E7AFF] hover:text-red-500 transition-all"
-                            onClick={() => removeInputParam(param.id)}
-                            disabled={inputParams.length === 1}
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
+                          <div className="flex-1 h-10 flex items-center px-3 border border-color-[hsl(var(--border))] rounded-md bg-transparent text-foreground">
+                            {param.name}
+                          </div>
+                          <div className="w-[180px] h-10 flex items-center px-3 border border-color-[hsl(var(--border))] rounded-md bg-transparent text-foreground">
+                            {param.type}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -748,68 +768,22 @@ export default function EditTask() {
                   <div className="space-y-2 rounded-lg border border-color-[hsl(var(--border))] p-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-foreground">Выходные параметры</span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="px-4 py-2 rounded-lg border border-[#4E7AFF] text-[#4E7AFF] dark:text-white font-medium transition-all hover:bg-[#4E7AFF]/10 hover:scale-105"
-                        onClick={addOutputParam}
-                      >
-                        Добавить параметр
-                      </Button>
                     </div>
                     
                     <div className="space-y-3">
                       {outputParams.map((param) => (
                         <div key={param.id} className="flex gap-4 items-center">
-                          <Input
-                            placeholder="Название параметра"
-                            className="flex-1 border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30"
-                            value={param.name}
-                            onChange={(e) => updateOutputParam(param.id, 'name', e.target.value)}
-                          />
-                          <Select
-                            value={param.type}
-                            onValueChange={(value) => updateOutputParam(param.id, 'type', value)}
-                          >
-                            <SelectTrigger className="w-[180px] border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30">
-                              <SelectValue placeholder="Выберите тип" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="int">int</SelectItem>
-                              <SelectItem value="float">float</SelectItem>
-                              <SelectItem value="string">string</SelectItem>
-                              <SelectItem value="bool">bool</SelectItem>
-                              <SelectItem value="list<int>">list&lt;int&gt;</SelectItem>
-                              <SelectItem value="list<float>">list&lt;float&gt;</SelectItem>
-                              <SelectItem value="list<string>">list&lt;string&gt;</SelectItem>
-                              <SelectItem value="list<bool>">list&lt;bool&gt;</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-[#4E7AFF] hover:text-red-500 transition-all"
-                            onClick={() => removeOutputParam(param.id)}
-                            disabled={outputParams.length === 1}
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
+                          <div className="flex-1 h-10 flex items-center px-3 border border-color-[hsl(var(--border))] rounded-md bg-transparent text-foreground">
+                            {param.name}
+                          </div>
+                          <div className="w-[180px] h-10 flex items-center px-3 border border-color-[hsl(var(--border))] rounded-md bg-transparent text-foreground">
+                            {param.type}
+                          </div>
                         </div>
                       ))}
                     </div>
                   </div>
                 </div>
-              </div>
-
-              <div className="flex justify-end mt-4">
-                <Button 
-                  className="px-6 py-3 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105 text-center flex items-center gap-2"
-                  disabled={!functionName || inputParams.some(p => !p.name || !p.type) || outputParams.some(p => !p.name || !p.type)}
-                  onClick={generateTemplates}
-                >
-                  <FileCode2 className="w-4 h-4" />
-                  Создать шаблон
-                </Button>
               </div>
             </div>
           </div>
@@ -900,7 +874,7 @@ export default function EditTask() {
                           <Label className="font-medium text-foreground">
                             Языковой режим для тестов
                           </Label>
-                          <Select value={testLanguage} onValueChange={setTestLanguage}>
+                          <Select value={testLanguage} onValueChange={handleTestLanguageChange}>
                             <SelectTrigger className="w-full border border-color-[hsl(var(--border))] bg-transparent text-foreground focus:ring-2 focus:ring-[#4E7AFF]/30">
                               <SelectValue placeholder="Выберите язык" />
                             </SelectTrigger>
@@ -979,11 +953,7 @@ export default function EditTask() {
                           }`}>
                             <Textarea
                               value={testCase.input}
-                              onChange={(e) => {
-                                const newTestCases = [...testCases];
-                                newTestCases[index].input = e.target.value;
-                                setTestCases(newTestCases);
-                              }}
+                              onChange={(e) => handleTestCaseChange(index, 'input', e.target.value)}
                               className="min-h-[100px] font-mono text-sm border-none resize-y focus-visible:ring-0 bg-transparent text-foreground"
                             />
                           </div>
@@ -1014,11 +984,7 @@ export default function EditTask() {
                           }`}>
                             <Textarea
                               value={String(testCase.expected_output)}
-                              onChange={(e) => {
-                                const newTestCases = [...testCases];
-                                newTestCases[index].expected_output = e.target.value;
-                                setTestCases(newTestCases);
-                              }}
+                              onChange={(e) => handleTestCaseChange(index, 'expected_output', e.target.value)}
                               className="min-h-[100px] font-mono text-sm border-none resize-y focus-visible:ring-0 bg-transparent text-foreground"
                             />
                           </div>

@@ -215,7 +215,7 @@ export default function HackathonsPage() {
         </div>
       </div>
 
-      <div className="border rounded-lg">
+      <div className="rounded-md border mt-4">
         <Table>
           <TableHeader>
             <TableRow>
@@ -246,7 +246,11 @@ export default function HackathonsPage() {
               </TableRow>
             ) : (
               hackathons.map((hackathon) => (
-                <TableRow key={hackathon.id}>
+                <TableRow 
+                  key={hackathon.id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() => router.push(`/admin/hackathons/${hackathon.id}`)}
+                >
                   <TableCell className="font-medium">{hackathon.title}</TableCell>
                   <TableCell>{getStatusBadge(hackathon)}</TableCell>
                   <TableCell>
@@ -266,7 +270,10 @@ export default function HackathonsPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => router.push(`/admin/hackathons/edit/${hackathon.id}`)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/admin/hackathons/edit/${hackathon.id}`);
+                        }}
                         disabled={isHackathonStarted(hackathon)}
                         title={isHackathonStarted(hackathon) ? "Нельзя редактировать начавшийся хакатон" : "Редактировать"}
                       >
@@ -277,7 +284,8 @@ export default function HackathonsPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setHackathonToDelete(hackathon.id);
                             }}
                             className="text-red-500 hover:text-red-600"
@@ -301,7 +309,10 @@ export default function HackathonsPage() {
                           <AlertDialogFooter>
                             <AlertDialogCancel>Отмена</AlertDialogCancel>
                             <AlertDialogAction
-                              onClick={() => hackathonToDelete && handleDelete(hackathonToDelete)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (hackathonToDelete) handleDelete(hackathonToDelete);
+                              }}
                               className="bg-red-500 hover:bg-red-600"
                             >
                               Удалить

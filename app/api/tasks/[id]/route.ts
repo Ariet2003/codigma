@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(
   request: Request,
@@ -7,59 +7,28 @@ export async function GET(
 ) {
   try {
     const task = await prisma.task.findUnique({
-      where: { id: params.id },
+      where: {
+        id: params.id,
+      },
       include: {
         testCases: true,
         codeTemplates: true,
+        submissions: true,
       },
     });
 
     if (!task) {
       return NextResponse.json(
-        { error: "Задача не найдена" },
+        { error: "Task not found" },
         { status: 404 }
       );
     }
 
-    // Преобразуем данные в формат, ожидаемый фронтендом
-    const formattedTask = {
-      id: task.id,
-      title: task.title,
-      difficulty: task.difficulty,
-      description: task.description,
-      function_name: task.functionName,
-      input_params: task.inputParams,
-      output_params: task.outputParams,
-      test_cases: task.testCases.map(test => ({
-        id: test.id,
-        input: test.input,
-        expected_output: test.expectedOutput
-      })),
-      templates: {
-        cpp: {
-          base: task.codeTemplates.find(t => t.language === 'cpp')?.baseTemplate || '',
-          full: task.codeTemplates.find(t => t.language === 'cpp')?.fullTemplate || ''
-        },
-        js: {
-          base: task.codeTemplates.find(t => t.language === 'js')?.baseTemplate || '',
-          full: task.codeTemplates.find(t => t.language === 'js')?.fullTemplate || ''
-        },
-        rust: {
-          base: task.codeTemplates.find(t => t.language === 'rust')?.baseTemplate || '',
-          full: task.codeTemplates.find(t => t.language === 'rust')?.fullTemplate || ''
-        },
-        java: {
-          base: task.codeTemplates.find(t => t.language === 'java')?.baseTemplate || '',
-          full: task.codeTemplates.find(t => t.language === 'java')?.fullTemplate || ''
-        }
-      }
-    };
-
-    return NextResponse.json(formattedTask);
+    return NextResponse.json(task);
   } catch (error) {
-    console.error("Ошибка при получении задачи:", error);
+    console.error("Error fetching task:", error);
     return NextResponse.json(
-      { error: "Произошла ошибка при получении задачи" },
+      { error: "Failed to fetch task" },
       { status: 500 }
     );
   }

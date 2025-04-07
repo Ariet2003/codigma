@@ -89,6 +89,7 @@ model Task {
   updatedAt     DateTime   @updatedAt
   testCases     TestCase[]
   codeTemplates CodeTemplate[]
+  submissions   TaskSubmission[]
 }
 
 model TestCase {
@@ -174,26 +175,22 @@ enum RequestStatus {
 
 // Решения задач участниками
 model TaskSubmission {
-  id            String    @id @default(uuid())
-  participantId String
-  hackathonId   String
-  taskId        String
-  code          String    @db.Text
+  id            String   @id @default(cuid())
+  code          String
   language      String
-  status        SubmissionStatus
-  score         Float     @default(0)
-  feedback      String?   @db.Text
-  memory        Int       @default(0)  // Использованная память в байтах
-  executionTime Int       @default(0)  // Время выполнения в миллисекундах
-  submittedAt   DateTime  @default(now()) // Время отправки решения
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  participant   HackathonParticipant @relation(fields: [participantId], references: [id])
-  hackathon     Hackathon @relation(fields: [hackathonId], references: [id])
+  status        String
+  memory        Int?
+  executionTime Int?
+  testsTotal    Int     @default(0)  // Общее количество тестов
+  testsPassed   Int     @default(0)  // Количество пройденных тестов
+  participant   HackathonParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  participantId String
+  task          Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId        String
+  hackathon     Hackathon @relation(fields: [hackathonId], references: [id], onDelete: Cascade)
+  hackathonId   String
 
-  @@index([participantId])
-  @@index([hackathonId])
-  @@index([taskId])
+  @@unique([participantId, taskId, hackathonId])
 }
 
 // Статус решения

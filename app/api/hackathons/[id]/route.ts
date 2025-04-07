@@ -19,7 +19,24 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       );
     }
 
-    return NextResponse.json(hackathon);
+    // Получаем информацию о задачах
+    const tasks = await prisma.task.findMany({
+      where: {
+        id: {
+          in: hackathon.tasks as string[],
+        },
+      },
+      select: {
+        id: true,
+        title: true,
+        difficulty: true,
+      },
+    });
+
+    return NextResponse.json({
+      ...hackathon,
+      tasks,
+    });
   } catch (error) {
     console.error("Ошибка при получении хакатона:", error);
     return NextResponse.json(
