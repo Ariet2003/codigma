@@ -40,19 +40,28 @@ async function getTask(id: string) {
   return response.json();
 }
 
-async function getTaskSubmissions(taskId: string) {
-  const response = await fetch(
-    `${process.env.NEXT_PUBLIC_APP_URL}/api/tasks/${taskId}/submissions`,
-    {
-      cache: 'no-store',
+async function getTaskSubmissions(id: string) {
+  try {
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_APP_URL}/api/tasks/${id}/submissions`,
+      {
+        cache: 'no-store',
+      }
+    );
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return { submissions: [] };
+      }
+      console.error('Error fetching submissions:', response.status, response.statusText);
+      return { submissions: [] };
     }
-  );
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch submissions');
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching submissions:', error);
+    return { submissions: [] };
   }
-
-  return response.json();
 }
 
 export default async function TaskDetailsPage({
@@ -65,7 +74,7 @@ export default async function TaskDetailsPage({
     notFound();
   }
 
-  const submissions = await getTaskSubmissions(params.id);
+  const { submissions } = await getTaskSubmissions(params.id);
 
   // Получаем шаблонные коды для разных языков
   const getTemplateCode = (language: string) => {

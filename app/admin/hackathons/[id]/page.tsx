@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Markdown from 'react-markdown';
-import { Calendar, Users, Trophy, Clock, Info, List, ChevronRight, CalendarCheck, CalendarCheck2Icon, CalendarHeart, CalendarRange, CalendarX, CalendarDaysIcon } from 'lucide-react';
+import { Calendar, Users, Trophy, Clock, Info, List, ChevronRight, CalendarCheck, CalendarCheck2Icon, CalendarHeart, CalendarRange, CalendarX, CalendarDaysIcon, UserPlus } from 'lucide-react';
 import HackathonTimer from '@/components/ui/hackathon-timer';
 
 async function getHackathon(id: string) {
@@ -166,6 +166,26 @@ export default async function HackathonDetailsPage({
           </div>
         </CardContent>
       </Card>
+
+      {/* Кнопка для заявок на участие (только для закрытых хакатонов, которые еще не начались) */}
+      {!hackathon.isOpen && new Date(hackathon.startDate) > new Date() && (
+        <Card className="md:col-span-2">
+          <CardContent className="pt-6">
+            <Link href={`/admin/hackathons/${params.id}/participation-requests`} className="block">
+              <Button
+                variant="outline"
+                className="w-full h-24 text-lg justify-between group hover:border-[#4E7AFF] hover:text-[#4E7AFF]"
+              >
+                <div className="flex items-center gap-3">
+                  <UserPlus className="w-6 h-6" />
+                  <span>Заявки на участие</span>
+                </div>
+                <ChevronRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 } 
