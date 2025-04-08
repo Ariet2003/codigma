@@ -214,7 +214,7 @@ export default async function TaskDetailsPage({
               <Clock className="w-5 h-5 text-purple-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Среднее использование памяти</p>
-                <p className="font-medium">{submissions.avgMemory || 0} МБ</p>
+                <p className="font-medium">{submissions.avgMemory || 0} КБ</p>
               </div>
             </div>
           </div>

@@ -1,3 +1,6 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { notFound } from 'next/navigation';
@@ -5,50 +8,88 @@ import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Markdown from 'react-markdown';
-import { Calendar, Users, Trophy, Clock, Info, List, ChevronRight, CalendarCheck, CalendarCheck2Icon, CalendarHeart, CalendarRange, CalendarX, CalendarDaysIcon, UserPlus } from 'lucide-react';
+import { Calendar, Users, Trophy, Clock, Info, List, ChevronRight, CalendarCheck, CalendarCheck2Icon, CalendarHeart, CalendarRange, CalendarX, CalendarDaysIcon, UserPlus, BarChart3 } from 'lucide-react';
 import HackathonTimer from '@/components/ui/hackathon-timer';
+import { useRouter } from 'next/navigation';
 
-async function getHackathon(id: string) {
-  const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/hackathons/${id}`, {
-    cache: 'no-store',
-  });
-
-  if (!response.ok) {
-    if (response.status === 404) {
-      return null;
-    }
-    throw new Error('Failed to fetch hackathon');
-  }
-
-  return response.json();
-}
-
-async function getHackathonParticipants(id: string) {
-  const response = await fetch(
-    `${process.env.NEXT_PUBLIC_APP_URL}/api/hackathons/${id}/participants`,
-    {
-      cache: 'no-store',
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch participants');
-  }
-
-  return response.json();
-}
-
-export default async function HackathonDetailsPage({
+export default function HackathonDetailsPage({
   params,
 }: {
   params: { id: string };
 }) {
-  const hackathon = await getHackathon(params.id);
-  if (!hackathon) {
-    notFound();
+  const router = useRouter();
+  const [hackathon, setHackathon] = useState<any>(null);
+  const [participants, setParticipants] = useState<any>({ participants: [] });
+  const [loading, setLoading] = useState(true);
+
+  const fetchHackathonData = async () => {
+    try {
+      setLoading(true);
+      
+      // Получаем данные о хакатоне
+      const hackathonResponse = await fetch(`/api/hackathons/${params.id}`, {
+        cache: 'no-store',
+      });
+      
+      if (!hackathonResponse.ok) {
+        if (hackathonResponse.status === 404) {
+          notFound();
+        }
+        throw new Error('Failed to fetch hackathon');
+      }
+      
+      const hackathonData = await hackathonResponse.json();
+      setHackathon(hackathonData);
+      
+      // Получаем данные об участниках
+      const participantsResponse = await fetch(`/api/hackathons/${params.id}/participants`, {
+        cache: 'no-store',
+      });
+      
+      if (!participantsResponse.ok) {
+        throw new Error('Failed to fetch participants');
+      }
+      
+      const participantsData = await participantsResponse.json();
+      setParticipants(participantsData);
+    } catch (error) {
+      console.error('Error fetching hackathon data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Загружаем данные при монтировании компонента
+  useEffect(() => {
+    fetchHackathonData();
+  }, [params.id]);
+
+  // Обработчик для обновления данных при возврате через стрелки браузера
+  useEffect(() => {
+    const handlePopState = () => {
+      fetchHackathonData();
+    };
+
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
   }
 
-  const participants = await getHackathonParticipants(params.id);
+  if (!hackathon) {
+    return null;
+  }
+
+  const isHackathonEnded = new Date(hackathon.endDate) < new Date();
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
@@ -138,7 +179,7 @@ export default async function HackathonDetailsPage({
       {/* Кнопки навигации */}
       <Card className="md:col-span-2">
         <CardContent className="pt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Link href={`/admin/hackathons/${params.id}/tasks`} className="block">
               <Button
                 variant="outline"
@@ -159,6 +200,22 @@ export default async function HackathonDetailsPage({
                 <div className="flex items-center gap-3">
                   <Users className="w-6 h-6" />
                   <span>Участники хакатона</span>
+                </div>
+                <ChevronRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
+              </Button>
+            </Link>
+            <Link 
+              href={isHackathonEnded ? `/admin/hackathons/${params.id}/statistics` : '#'} 
+              className={`block ${!isHackathonEnded ? 'cursor-not-allowed opacity-50' : ''}`}
+            >
+              <Button
+                variant="outline"
+                className="w-full h-24 text-lg justify-between group hover:border-[#4E7AFF] hover:text-[#4E7AFF]"
+                disabled={!isHackathonEnded}
+              >
+                <div className="flex items-center gap-3">
+                  <BarChart3 className="w-6 h-6" />
+                  <span>Статистика</span>
                 </div>
                 <ChevronRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
               </Button>
