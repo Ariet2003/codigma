@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Markdown from 'react-markdown';
 import { Calendar, Users, Trophy, Clock, Info, List, ChevronRight, CalendarCheck, CalendarCheck2Icon, CalendarHeart, CalendarRange, CalendarX, CalendarDaysIcon } from 'lucide-react';
+import HackathonTimer from '@/components/ui/hackathon-timer';
 
 async function getHackathon(id: string) {
   const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/hackathons/${id}`, {
@@ -63,6 +64,11 @@ export default async function HackathonDetailsPage({
           </div>
         </CardContent>
       </Card>
+
+      {/* Таймер хакатона */}
+      <div className="md:col-span-2">
+        <HackathonTimer startDate={hackathon.startDate} endDate={hackathon.endDate} />
+      </div>
 
       {/* Даты */}
       <Card>
