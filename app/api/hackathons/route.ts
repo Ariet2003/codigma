@@ -1,6 +1,33 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
+// Функция для сериализации хакатона
+const serializeHackathon = (hackathon: any) => ({
+  ...hackathon,
+  id: String(hackathon.id),
+  participants: hackathon.participants?.map((p: any) => ({
+    ...p,
+    id: String(p.id),
+    userId: String(p.userId),
+    hackathonId: String(p.hackathonId)
+  })) || [],
+  applications: hackathon.applications?.map((a: any) => ({
+    ...a,
+    id: String(a.id),
+    userId: String(a.userId),
+    hackathonId: String(a.hackathonId)
+  })) || [],
+  submissions: hackathon.submissions?.map((s: any) => ({
+    ...s,
+    id: String(s.id),
+    participantId: String(s.participantId),
+    taskId: String(s.taskId),
+    hackathonId: String(s.hackathonId),
+    memory: s.memory ? Number(s.memory) : null,
+    executionTime: s.executionTime ? Number(s.executionTime) : null
+  })) || []
+});
+
 export async function POST(req: Request) {
   try {
     const data = await req.json();
@@ -22,11 +49,16 @@ export async function POST(req: Request) {
         startDate: new Date(startDate),
         endDate: new Date(endDate),
         isOpen: Boolean(isOpen),
-        tasks: tasks // Передаем массив как есть
+        tasks: tasks
       },
+      include: {
+        participants: true,
+        applications: true,
+        submissions: true,
+      }
     });
 
-    return NextResponse.json(hackathon);
+    return NextResponse.json(serializeHackathon(hackathon));
   } catch (error) {
     console.error("Ошибка при создании хакатона:", error);
     return NextResponse.json(
@@ -121,11 +153,14 @@ export async function GET(req: Request) {
       },
     });
 
+    // Используем общую функцию сериализации
+    const serializedHackathons = hackathons.map(serializeHackathon);
+
     return NextResponse.json({
-      hackathons,
+      hackathons: serializedHackathons,
       totalPages,
       currentPage: page,
-      total,
+      total: Number(total),
     });
   } catch (error) {
     console.error("Ошибка при получении хакатонов:", error);

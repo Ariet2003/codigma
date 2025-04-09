@@ -173,31 +173,34 @@ enum RequestStatus {
   REJECTED
 }
 
-// Решения задач участниками
-model TaskSubmission {
-  id            String   @id @default(cuid())
-  code          String
-  language      String
-  status        String
-  memory        Int?
-  executionTime Int?
-  testsTotal    Int     @default(0)  // Общее количество тестов
-  testsPassed   Int     @default(0)  // Количество пройденных тестов
-  participant   HackathonParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
-  participantId String
-  task          Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  taskId        String
-  hackathon     Hackathon @relation(fields: [hackathonId], references: [id], onDelete: Cascade)
-  hackathonId   String
-
-  @@unique([participantId, taskId, hackathonId])
-}
-
-// Статус решения
-enum SubmissionStatus {
+enum Status {
   PENDING
   PROCESSING
   ACCEPTED
   REJECTED
   ERROR
+}
+
+// Решения задач участниками
+model TaskSubmission {
+  id             String   @id @default(cuid())
+  status         Status   @default(PENDING)
+  testsPassed    Int     @default(0)
+  testsTotal     Int     @default(0)
+  memory         BigInt? 
+  executionTime  BigInt?
+  language       String?
+  code           String  @db.Text
+  createdAt      DateTime @default(now()) @db.Timestamp(6)
+  
+  participant   HackathonParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  participantId String
+  task         Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  taskId       String
+  hackathon    Hackathon? @relation(fields: [hackathonId], references: [id], onDelete: SetNull)
+  hackathonId  String?
+
+  @@index([participantId])
+  @@index([taskId])
+  @@index([hackathonId])
 }

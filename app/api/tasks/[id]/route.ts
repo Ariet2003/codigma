@@ -1,6 +1,34 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+// Функция для сериализации решения
+const serializeSubmission = (submission: any) => ({
+  ...submission,
+  id: String(submission.id),
+  participantId: String(submission.participantId),
+  taskId: String(submission.taskId),
+  hackathonId: submission.hackathonId ? String(submission.hackathonId) : null,
+  memory: submission.memory ? Number(submission.memory) : null,
+  executionTime: submission.executionTime ? Number(submission.executionTime) : null
+});
+
+// Функция для сериализации задачи
+const serializeTask = (task: any) => ({
+  ...task,
+  id: String(task.id),
+  testCases: task.testCases?.map((testCase: any) => ({
+    ...testCase,
+    id: String(testCase.id),
+    taskId: String(testCase.taskId)
+  })) || [],
+  codeTemplates: task.codeTemplates?.map((template: any) => ({
+    ...template,
+    id: String(template.id),
+    taskId: String(template.taskId)
+  })) || [],
+  submissions: task.submissions?.map(serializeSubmission) || []
+});
+
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
@@ -24,7 +52,7 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(task);
+    return NextResponse.json(serializeTask(task));
   } catch (error) {
     console.error("Error fetching task:", error);
     return NextResponse.json(

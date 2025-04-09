@@ -30,23 +30,31 @@ export async function GET(
       where: {
         hackathonId: params.id,
       },
-      include: {
+      select: {
+        id: true,
+        joinedAt: true,
+        totalScore: true,
         user: {
           select: {
             name: true,
             email: true,
-          },
-        },
-      },
+          }
+        }
+      }
     });
 
     const submissions = await prisma.taskSubmission.findMany({
       where: {
         hackathonId: params.id,
       },
-      include: {
-        task: true,
-      },
+      select: {
+        id: true,
+        status: true,
+        taskId: true,
+        participantId: true,
+        testsPassed: true,
+        testsTotal: true
+      }
     });
 
     const tasks = await prisma.task.findMany({
@@ -55,6 +63,11 @@ export async function GET(
           in: hackathon.tasks,
         },
       },
+      select: {
+        id: true,
+        title: true,
+        difficulty: true
+      }
     });
 
     // Формируем рейтинг участников
@@ -69,9 +82,15 @@ export async function GET(
           .map((s) => s.taskId)
       );
 
-      const totalScore = userSubmissions
+      // Подсчитываем процент пройденных тестов для каждого решения
+      const submissionScores = userSubmissions
         .filter((s) => s.status === "ACCEPTED")
-        .reduce((sum, s) => sum + (s.score || 0), 0);
+        .map(s => (s.testsPassed / s.testsTotal) * 100);
+
+      // Считаем средний балл по всем успешным решениям
+      const averageScore = submissionScores.length > 0
+        ? submissionScores.reduce((sum, score) => sum + score, 0) / submissionScores.length
+        : 0;
 
       const averageAttempts = userSubmissions.length / solvedTasks.size || 0;
 
@@ -79,8 +98,8 @@ export async function GET(
         id: participant.id,
         name: participant.user.name || "Аноним",
         email: participant.user.email,
-        joinedAt: participant.createdAt ? new Date(participant.createdAt).toISOString() : null,
-        totalScore,
+        joinedAt: participant.joinedAt ? new Date(participant.joinedAt).toISOString() : null,
+        totalScore: participant.totalScore || averageScore, // Используем totalScore из базы или вычисляем
         solvedTasksCount: solvedTasks.size,
         totalSubmissions: userSubmissions.length,
         averageAttempts: Number(averageAttempts.toFixed(2)),

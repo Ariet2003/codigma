@@ -139,6 +139,7 @@ export default async function HackathonDetailsPage({
       <Card className="md:col-span-2">
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Задачи хакатона - показываем всегда */}
             <Link href={`/admin/hackathons/${params.id}/tasks`} className="block">
               <Button
                 variant="outline"
@@ -151,6 +152,8 @@ export default async function HackathonDetailsPage({
                 <ChevronRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
               </Button>
             </Link>
+
+            {/* Участники хакатона - показываем всегда */}
             <Link href={`/admin/hackathons/${params.id}/participants`} className="block">
               <Button
                 variant="outline"
@@ -163,6 +166,54 @@ export default async function HackathonDetailsPage({
                 <ChevronRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
               </Button>
             </Link>
+
+            {/* Заявки хакатона - только для закрытых предстоящих хакатонов */}
+            {!hackathon.isOpen && new Date() < new Date(hackathon.startDate) && (
+              <Link href={`/admin/hackathons/${params.id}/participation-requests`} className="block">
+                <Button
+                  variant="outline"
+                  className="w-full h-24 text-lg justify-between group hover:border-[#4E7AFF] hover:text-[#4E7AFF]"
+                >
+                  <div className="flex items-center gap-3">
+                    <CalendarHeart className="w-6 h-6" />
+                    <span>Заявки хакатона</span>
+                  </div>
+                  <ChevronRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
+                </Button>
+              </Link>
+            )}
+
+            {/* Рейтинг хакатона - для начатых и завершенных хакатонов */}
+            {new Date() >= new Date(hackathon.startDate) && (
+              <Link href={`/admin/hackathons/${params.id}/rating`} className="block">
+                <Button
+                  variant="outline"
+                  className="w-full h-24 text-lg justify-between group hover:border-[#4E7AFF] hover:text-[#4E7AFF]"
+                >
+                  <div className="flex items-center gap-3">
+                    <Trophy className="w-6 h-6" />
+                    <span>Рейтинг хакатона</span>
+                  </div>
+                  <ChevronRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
+                </Button>
+              </Link>
+            )}
+
+            {/* Статистика хакатона - только для завершенных хакатонов */}
+            {new Date() > new Date(hackathon.endDate) && (
+              <Link href={`/admin/hackathons/${params.id}/statistics`} className="block">
+                <Button
+                  variant="outline"
+                  className="w-full h-24 text-lg justify-between group hover:border-[#4E7AFF] hover:text-[#4E7AFF]"
+                >
+                  <div className="flex items-center gap-3">
+                    <CalendarDaysIcon className="w-6 h-6" />
+                    <span>Статистика хакатона</span>
+                  </div>
+                  <ChevronRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
+                </Button>
+              </Link>
+            )}
           </div>
         </CardContent>
       </Card>

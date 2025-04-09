@@ -390,7 +390,7 @@ export default function StatisticsPage({
                           </Badge>
                         </td>
                         <td className="text-center py-3 px-4">{task.avgExecutionTime} мс</td>
-                        <td className="text-center py-3 px-4">{task.avgMemoryUsage} КБ</td>
+                        <td className="text-center py-3 px-4">{task.avgMemoryUsage} Б</td>
                       </tr>
                     ))}
                   </tbody>

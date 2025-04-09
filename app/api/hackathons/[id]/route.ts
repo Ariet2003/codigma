@@ -1,6 +1,36 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
+// Функция для сериализации решения
+const serializeSubmission = (submission: any) => ({
+  ...submission,
+  id: String(submission.id),
+  participantId: String(submission.participantId),
+  taskId: String(submission.taskId),
+  hackathonId: submission.hackathonId ? String(submission.hackathonId) : null,
+  memory: submission.memory ? Number(submission.memory) : null,
+  executionTime: submission.executionTime ? Number(submission.executionTime) : null
+});
+
+// Функция для сериализации хакатона
+const serializeHackathon = (hackathon: any) => ({
+  ...hackathon,
+  id: String(hackathon.id),
+  participants: hackathon.participants?.map((p: any) => ({
+    ...p,
+    id: String(p.id),
+    userId: String(p.userId),
+    hackathonId: String(p.hackathonId)
+  })) || [],
+  applications: hackathon.applications?.map((a: any) => ({
+    ...a,
+    id: String(a.id),
+    userId: String(a.userId),
+    hackathonId: String(a.hackathonId)
+  })) || [],
+  submissions: hackathon.submissions?.map(serializeSubmission) || []
+});
+
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {
     const hackathon = await prisma.hackathon.findUnique({
@@ -33,9 +63,14 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       },
     });
 
+    // Сериализуем хакатон и добавляем задачи
+    const serializedHackathon = serializeHackathon(hackathon);
     return NextResponse.json({
-      ...hackathon,
-      tasks,
+      ...serializedHackathon,
+      tasks: tasks.map(task => ({
+        ...task,
+        id: String(task.id)
+      }))
     });
   } catch (error) {
     console.error("Ошибка при получении хакатона:", error);

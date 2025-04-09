@@ -152,13 +152,13 @@ export async function GET(
           : 0,
         avgExecutionTime: successfulSubmissions.length > 0
           ? Math.round(
-              successfulSubmissions.reduce((sum, s) => sum + (s.executionTime || 0), 0) /
+              Number(successfulSubmissions.reduce((sum, s) => sum + (s.executionTime ? Number(s.executionTime) : 0), 0)) /
               successfulSubmissions.length
             )
           : 0,
         avgMemoryUsage: successfulSubmissions.length > 0
           ? Math.round(
-              successfulSubmissions.reduce((sum, s) => sum + (s.memory || 0), 0) /
+              Number(successfulSubmissions.reduce((sum, s) => sum + (s.memory ? Number(s.memory) : 0), 0)) /
               successfulSubmissions.length
             )
           : 0,
