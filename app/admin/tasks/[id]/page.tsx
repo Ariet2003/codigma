@@ -43,7 +43,7 @@ async function getTask(id: string) {
 async function getTaskSubmissions(id: string) {
   try {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_APP_URL}/api/tasks/${id}/submissions`,
+      `${process.env.NEXT_PUBLIC_APP_URL}/api/tasks/${id}/submissions?hackathonId=all`,
       {
         cache: 'no-store',
       }
@@ -75,6 +75,22 @@ export default async function TaskDetailsPage({
   }
 
   const { submissions } = await getTaskSubmissions(params.id);
+  
+  // Инициализируем submissions пустым массивом, если он undefined
+  const submissionsList = submissions || [];
+
+  // Рассчитываем статистику отправок
+  const statistics = {
+    correctSolutions: submissionsList.filter((s: { status: string }) => s.status === 'CORRECT').length,
+    wrongSolutions: submissionsList.filter((s: { status: string }) => s.status === 'WRONG').length,
+    totalSubmissions: submissionsList.length,
+    avgExecutionTime: submissionsList.length > 0 
+      ? Math.round(submissionsList.reduce((acc: number, s: { executionTime?: number }) => acc + (s.executionTime || 0), 0) / submissionsList.length)
+      : 0,
+    avgMemory: submissionsList.length > 0
+      ? Math.round(submissionsList.reduce((acc: number, s: { memoryUsed?: number }) => acc + (s.memoryUsed || 0), 0) / submissionsList.length)
+      : 0
+  };
 
   // Получаем шаблонные коды для разных языков
   const getTemplateCode = (language: string) => {
@@ -186,35 +202,35 @@ export default async function TaskDetailsPage({
               <CheckCircle2 className="w-5 h-5 text-green-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Правильных решений</p>
-                <p className="font-medium">{submissions.correctSolutions || 0}</p>
+                <p className="font-medium">{statistics.correctSolutions}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <XCircle className="w-5 h-5 text-red-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Неправильных решений</p>
-                <p className="font-medium">{submissions.wrongSolutions || 0}</p>
+                <p className="font-medium">{statistics.wrongSolutions}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <Code className="w-5 h-5 text-blue-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Всего отправлено решений</p>
-                <p className="font-medium">{submissions.totalSubmissions || 0}</p>
+                <p className="font-medium">{statistics.totalSubmissions}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <Clock className="w-5 h-5 text-blue-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Среднее время выполнения</p>
-                <p className="font-medium">{submissions.avgExecutionTime || 0} мс</p>
+                <p className="font-medium">{statistics.avgExecutionTime} мс</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <Clock className="w-5 h-5 text-purple-500" />
               <div>
                 <p className="text-sm text-muted-foreground">Среднее использование памяти</p>
-                <p className="font-medium">{submissions.avgMemory || 0} КБ</p>
+                <p className="font-medium">{statistics.avgMemory} КБ</p>
               </div>
             </div>
           </div>
