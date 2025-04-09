@@ -115,6 +115,20 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
       prisma.participationRequest.deleteMany({
         where: { hackathonId: params.id },
       }),
+      // Получаем список участников для обновления их счетчиков
+      prisma.hackathonParticipant.findMany({
+        where: { hackathonId: params.id },
+        select: { userId: true }
+      }).then(participants => 
+        prisma.user.updateMany({
+          where: { id: { in: participants.map(p => p.userId) } },
+          data: {
+            hackathonsParticipated: {
+              decrement: 1
+            }
+          }
+        })
+      ),
       // Удаляем участников
       prisma.hackathonParticipant.deleteMany({
         where: { hackathonId: params.id },

@@ -69,12 +69,24 @@ export async function PATCH(
 
       // Создаем запись только если её ещё нет
       if (!existingParticipant) {
-        await prisma.hackathonParticipant.create({
-          data: {
-            hackathonId: hackathonId,
-            userId: participationRequest.userId,
-          },
-        });
+        await prisma.$transaction([
+          // Создаем запись об участии
+          prisma.hackathonParticipant.create({
+            data: {
+              hackathonId: hackathonId,
+              userId: participationRequest.userId,
+            },
+          }),
+          // Увеличиваем счетчик участия в хакатонах
+          prisma.user.update({
+            where: { id: participationRequest.userId },
+            data: {
+              hackathonsParticipated: {
+                increment: 1
+              }
+            }
+          })
+        ]);
       }
     }
     
