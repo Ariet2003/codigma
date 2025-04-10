@@ -36,12 +36,14 @@ import {
   CircleDashed,
   Hourglass,
   FileQuestion,
-  Mail
+  Mail,
+  Download
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { ru } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import Excel from 'exceljs';
 
 interface UserReport {
   totalUsers: number;
@@ -65,31 +67,23 @@ interface UserReport {
 
 interface HackathonReport {
   totalHackathons: number;
-  types: {
-    open: number;
-    closed: number;
-  };
   status: {
-    upcoming: number;
     active: number;
     completed: number;
+    upcoming: number;
   };
-  hackathons: {
+  hackathons: Array<{
     id: string;
     title: string;
     isOpen: boolean;
     startDate: string;
     endDate: string;
     participantsCount: number;
+    tasksCount: number;
     totalScore: number;
     averageScore: number;
-    status: 'upcoming' | 'active' | 'completed';
-  }[];
-  pagination: {
-    currentPage: number;
-    totalPages: number;
-    pageSize: number;
-  };
+    status: "upcoming" | "active" | "completed";
+  }>;
 }
 
 interface TaskReport {
@@ -267,13 +261,10 @@ export default function ReportsPage() {
 
   if (!userReport || !hackathonReport || !taskReport || !submissionReport || !requestReport) {
     return (
-      <div className="flex h-[450px] shrink-0 items-center justify-center rounded-md border border-dashed">
-        <div className="mx-auto flex max-w-[420px] flex-col items-center justify-center text-center">
-          <BarChart className="h-10 w-10 text-muted-foreground animate-pulse" />
-          <h3 className="mt-4 text-lg font-semibold">Загрузка отчетов</h3>
-          <p className="mb-4 mt-2 text-sm text-muted-foreground">
-            Пожалуйста, подождите, идет сбор данных...
-          </p>
+      <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
+        <div className="relative h-10 w-10">
+          <div className="absolute h-10 w-10 rounded-full border-4 border-[#4E7AFF]/20"></div>
+          <div className="absolute h-10 w-10 rounded-full border-4 border-[#4E7AFF] border-t-transparent animate-spin"></div>
         </div>
       </div>
     );
@@ -350,6 +341,493 @@ export default function ReportsPage() {
     }
   };
 
+  const exportAllReports = async () => {
+    const workbook = new Excel.Workbook();
+    workbook.creator = 'Codigma';
+    workbook.created = new Date();
+
+    // Добавляем листы из отчета по пользователям
+    const usersStatsSheet = workbook.addWorksheet('Статистика пользователей', {
+      properties: { tabColor: { argb: '4E7AFF' } }
+    });
+    const usersTopSheet = workbook.addWorksheet('Топ пользователей', {
+      properties: { tabColor: { argb: '4E7AFF' } }
+    });
+
+    // Добавляем листы из отчета по хакатонам
+    const hackathonsStatsSheet = workbook.addWorksheet('Статистика хакатонов', {
+      properties: { tabColor: { argb: '4E7AFF' } }
+    });
+    const hackathonsListSheet = workbook.addWorksheet('Список хакатонов', {
+      properties: { tabColor: { argb: '4E7AFF' } }
+    });
+
+    // Добавляем листы из отчета по задачам
+    const tasksStatsSheet = workbook.addWorksheet('Статистика задач', {
+      properties: { tabColor: { argb: '4E7AFF' } }
+    });
+    const tasksTopSheet = workbook.addWorksheet('Топ задач', {
+      properties: { tabColor: { argb: '4E7AFF' } }
+    });
+
+    // Добавляем листы из отчета по решениям
+    const submissionsStatsSheet = workbook.addWorksheet('Статистика решений', {
+      properties: { tabColor: { argb: '4E7AFF' } }
+    });
+    const submissionsListSheet = workbook.addWorksheet('Последние решения', {
+      properties: { tabColor: { argb: '4E7AFF' } }
+    });
+
+    // Добавляем листы из отчета по заявкам
+    const requestsStatsSheet = workbook.addWorksheet('Статистика заявок', {
+      properties: { tabColor: { argb: '4E7AFF' } }
+    });
+    const requestsHackathonsSheet = workbook.addWorksheet('Статистика заявок по хакатонам', {
+      properties: { tabColor: { argb: '4E7AFF' } }
+    });
+    const requestsListSheet = workbook.addWorksheet('Последние заявки', {
+      properties: { tabColor: { argb: '4E7AFF' } }
+    });
+
+    // Функция для создания заголовка листа
+    const createSheetHeader = (sheet: Excel.Worksheet, title: string, columnsCount: number) => {
+      sheet.mergeCells(`A1:${String.fromCharCode(65 + columnsCount - 1)}1`);
+      const titleRow = sheet.getRow(1);
+      titleRow.height = 40;
+      const titleCell = titleRow.getCell(1);
+      titleCell.value = title;
+      titleCell.font = {
+        name: 'Arial',
+        size: 16,
+        bold: true,
+        color: { argb: 'FFFFFF' }
+      };
+      titleCell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: '4E7AFF' }
+      };
+      titleCell.alignment = {
+        horizontal: 'center',
+        vertical: 'middle'
+      };
+      sheet.addRow([]);
+    };
+
+    // Функция для создания заголовков таблицы
+    const createTableHeader = (sheet: Excel.Worksheet, headers: string[]) => {
+      const headerRow = sheet.addRow(headers);
+      headerRow.height = 30;
+      headerRow.eachCell((cell) => {
+        cell.font = {
+          name: 'Arial',
+          size: 12,
+          bold: true,
+          color: { argb: '4E7AFF' }
+        };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: 'F8F9FA' }
+        };
+        cell.alignment = {
+          horizontal: 'center',
+          vertical: 'middle'
+        };
+        cell.border = {
+          bottom: { style: 'thin', color: { argb: '4E7AFF' } }
+        };
+      });
+    };
+
+    // Заполняем отчет по пользователям
+    createSheetHeader(usersStatsSheet, 'Общая статистика по пользователям', 2);
+    usersStatsSheet.columns = [{ width: 50 }, { width: 30 }];
+    createTableHeader(usersStatsSheet, ['Показатель', 'Значение']);
+    const usersStatsData = [
+      ['Всего пользователей', userReport.totalUsers],
+      ['Всего решено задач', userReport.taskStats.total],
+      ['Среднее количество задач на пользователя', userReport.taskStats.average],
+      ['Максимум решенных задач', userReport.taskStats.max],
+      ['Всего участий в хакатонах', userReport.hackathonStats.total],
+      ['Среднее количество хакатонов на пользователя', userReport.hackathonStats.average],
+      ['Максимум участий в хакатонах', userReport.hackathonStats.max]
+    ];
+    usersStatsData.forEach(row => {
+      const dataRow = usersStatsSheet.addRow(row);
+      dataRow.height = 25;
+      dataRow.getCell(1).font = { name: 'Arial', size: 11, color: { argb: '000000' } };
+      dataRow.getCell(2).font = { name: 'Arial', size: 11, bold: true, color: { argb: '4E7AFF' } };
+    });
+
+    createSheetHeader(usersTopSheet, 'Топ пользователей', 4);
+    usersTopSheet.columns = [
+      { width: 40 },
+      { width: 15 },
+      { width: 20 },
+      { width: 25 }
+    ];
+    createTableHeader(usersTopSheet, ['Пользователь', 'Баллы', 'Решено задач', 'Участие в хакатонах']);
+    userReport.topUsers.forEach(user => {
+      const userRow = usersTopSheet.addRow([
+        user.displayName,
+        Number(user.totalScore.toFixed(1)),
+        user.tasksCompleted,
+        user.hackathonsParticipated
+      ]);
+      userRow.height = 25;
+      userRow.eachCell((cell, colNumber) => {
+        cell.font = {
+          name: 'Arial',
+          size: 11,
+          color: colNumber === 2 ? { argb: '4E7AFF' } : { argb: '000000' },
+          bold: colNumber === 2
+        };
+      });
+    });
+
+    // Заполняем отчет по хакатонам
+    createSheetHeader(hackathonsStatsSheet, 'Общая статистика по хакатонам', 2);
+    hackathonsStatsSheet.columns = [{ width: 50 }, { width: 30 }];
+    createTableHeader(hackathonsStatsSheet, ['Показатель', 'Значение']);
+    const hackathonsStatsData = [
+      ['Всего хакатонов', hackathonReport.totalHackathons],
+      ['Предстоящие хакатоны', hackathonReport.status.upcoming],
+      ['Активные хакатоны', hackathonReport.status.active],
+      ['Завершенные хакатоны', hackathonReport.status.completed]
+    ];
+    hackathonsStatsData.forEach(row => {
+      const dataRow = hackathonsStatsSheet.addRow(row);
+      dataRow.height = 25;
+      dataRow.getCell(1).font = { name: 'Arial', size: 11, color: { argb: '000000' } };
+      dataRow.getCell(2).font = { name: 'Arial', size: 11, bold: true, color: { argb: '4E7AFF' } };
+    });
+
+    createSheetHeader(hackathonsListSheet, 'Список хакатонов', 6);
+    hackathonsListSheet.columns = [
+      { width: 40 },
+      { width: 20 },
+      { width: 20 },
+      { width: 30 },
+      { width: 15 },
+      { width: 15 }
+    ];
+    createTableHeader(hackathonsListSheet, [
+      'Название',
+      'Статус',
+      'Регистрация',
+      'Даты проведения',
+      'Участников',
+      'Средний балл'
+    ]);
+    hackathonReport.hackathons.forEach(hackathon => {
+      const dates = `${format(new Date(hackathon.startDate), 'd MMM', { locale: ru })} - ${format(new Date(hackathon.endDate), 'd MMM yyyy', { locale: ru })}`;
+      const status = getStatusText(hackathon.status);
+      const registration = hackathon.isOpen ? "Открыта" : "Закрыта";
+
+      const hackathonRow = hackathonsListSheet.addRow([
+        hackathon.title,
+        status,
+        registration,
+        dates,
+        hackathon.participantsCount,
+        hackathon.averageScore.toFixed(1)
+      ]);
+      hackathonRow.height = 25;
+      hackathonRow.eachCell((cell, colNumber) => {
+        cell.font = {
+          name: 'Arial',
+          size: 11,
+          color: { argb: '000000' }
+        };
+        if (colNumber === 2) {
+          switch (hackathon.status) {
+            case 'upcoming':
+              cell.font.color = { argb: '0000FF' };
+              break;
+            case 'active':
+              cell.font.color = { argb: '008000' };
+              break;
+            case 'completed':
+              cell.font.color = { argb: '808080' };
+              break;
+          }
+        }
+        if (colNumber === 3) {
+          cell.font.color = { argb: hackathon.isOpen ? '008000' : 'FF0000' };
+        }
+      });
+    });
+
+    // Заполняем отчет по задачам
+    createSheetHeader(tasksStatsSheet, 'Общая статистика по задачам', 2);
+    tasksStatsSheet.columns = [{ width: 50 }, { width: 30 }];
+    createTableHeader(tasksStatsSheet, ['Показатель', 'Значение']);
+    const tasksStatsData = [
+      ['Всего задач', taskReport.totalTasks],
+      ['Легкие задачи', taskReport.difficulty.easy],
+      ['Средние задачи', taskReport.difficulty.medium],
+      ['Сложные задачи', taskReport.difficulty.hard],
+      ['Минимум тест-кейсов', taskReport.testCases.min],
+      ['Максимум тест-кейсов', taskReport.testCases.max],
+      ['Среднее количество тест-кейсов', taskReport.testCases.average.toFixed(1)]
+    ];
+    tasksStatsData.forEach(row => {
+      const dataRow = tasksStatsSheet.addRow(row);
+      dataRow.height = 25;
+      dataRow.getCell(1).font = { name: 'Arial', size: 11, color: { argb: '000000' } };
+      dataRow.getCell(2).font = { name: 'Arial', size: 11, bold: true, color: { argb: '4E7AFF' } };
+    });
+
+    createSheetHeader(tasksTopSheet, 'Топ задач по количеству тест-кейсов', 3);
+    tasksTopSheet.columns = [
+      { width: 50 },
+      { width: 20 },
+      { width: 25 }
+    ];
+    createTableHeader(tasksTopSheet, ['Название задачи', 'Сложность', 'Количество тест-кейсов']);
+    taskReport.topTasksByTestCases.forEach(task => {
+      const taskRow = tasksTopSheet.addRow([
+        task.title,
+        task.difficulty,
+        task.testCasesCount
+      ]);
+      taskRow.height = 25;
+      taskRow.eachCell((cell, colNumber) => {
+        cell.font = {
+          name: 'Arial',
+          size: 11,
+          color: colNumber === 2 ? { argb: getDifficultyColor(task.difficulty).replace('text-', '') } : { argb: '000000' }
+        };
+      });
+    });
+
+    // Заполняем отчет по решениям
+    createSheetHeader(submissionsStatsSheet, 'Общая статистика по решениям', 2);
+    submissionsStatsSheet.columns = [{ width: 50 }, { width: 30 }];
+    createTableHeader(submissionsStatsSheet, ['Показатель', 'Значение']);
+    const submissionsStatsData = [
+      ['Всего решений', submissionReport.totalSubmissions],
+      ['Ожидают проверки', submissionReport.statusStats.pending],
+      ['В обработке', submissionReport.statusStats.processing],
+      ['Принято', submissionReport.statusStats.accepted],
+      ['Отклонено', submissionReport.statusStats.rejected],
+      ['Ошибка', submissionReport.statusStats.error],
+      ['Процент успешных тестов', `${submissionReport.performanceStats.testsPassedPercent.toFixed(1)}%`],
+      ['Минимальное использование памяти', formatBytes(submissionReport.performanceStats.memory.min)],
+      ['Максимальное использование памяти', formatBytes(submissionReport.performanceStats.memory.max)],
+      ['Среднее использование памяти', formatBytes(submissionReport.performanceStats.memory.average)],
+      ['Минимальное время выполнения', formatTime(submissionReport.performanceStats.executionTime.min)],
+      ['Максимальное время выполнения', formatTime(submissionReport.performanceStats.executionTime.max)],
+      ['Среднее время выполнения', formatTime(submissionReport.performanceStats.executionTime.average)]
+    ];
+    submissionsStatsData.forEach(row => {
+      const dataRow = submissionsStatsSheet.addRow(row);
+      dataRow.height = 25;
+      dataRow.getCell(1).font = { name: 'Arial', size: 11, color: { argb: '000000' } };
+      dataRow.getCell(2).font = { name: 'Arial', size: 11, bold: true, color: { argb: '4E7AFF' } };
+    });
+
+    createSheetHeader(submissionsListSheet, 'Последние решения', 9);
+    submissionsListSheet.columns = [
+      { width: 15 },
+      { width: 40 },
+      { width: 30 },
+      { width: 30 },
+      { width: 20 },
+      { width: 25 },
+      { width: 25 },
+      { width: 15 },
+      { width: 20 }
+    ];
+    createTableHeader(submissionsListSheet, [
+      'Статус',
+      'Задача',
+      'Пользователь',
+      'Хакатон',
+      'Тесты',
+      'Память',
+      'Время',
+      'Язык',
+      'Дата'
+    ]);
+    submissionReport.recentSubmissions.forEach(submission => {
+      const submissionRow = submissionsListSheet.addRow([
+        submission.status,
+        submission.taskTitle,
+        submission.userName,
+        submission.hackathonTitle || '—',
+        `${submission.testsPassed}/${submission.testsTotal} (${submission.passedPercent.toFixed(1)}%)`,
+        formatBytes(submission.memory),
+        formatTime(submission.executionTime),
+        submission.language || '—',
+        format(new Date(submission.createdAt), 'dd.MM.yyyy HH:mm', { locale: ru })
+      ]);
+      submissionRow.height = 25;
+      submissionRow.eachCell((cell, colNumber) => {
+        cell.font = {
+          name: 'Arial',
+          size: 11,
+          color: { argb: '000000' }
+        };
+        if (colNumber === 1) {
+          switch (submission.status.toLowerCase()) {
+            case 'pending':
+              cell.font.color = { argb: '0000FF' };
+              break;
+            case 'processing':
+              cell.font.color = { argb: 'FFA500' };
+              break;
+            case 'accepted':
+              cell.font.color = { argb: '008000' };
+              break;
+            case 'rejected':
+              cell.font.color = { argb: 'FF0000' };
+              break;
+            case 'error':
+              cell.font.color = { argb: 'FF6B00' };
+              break;
+          }
+        }
+      });
+    });
+
+    // Заполняем отчет по заявкам
+    createSheetHeader(requestsStatsSheet, 'Общая статистика по заявкам', 2);
+    requestsStatsSheet.columns = [{ width: 50 }, { width: 30 }];
+    createTableHeader(requestsStatsSheet, ['Показатель', 'Значение']);
+    const requestsStatsData = [
+      ['Всего заявок', requestReport.totalRequests],
+      ['На рассмотрении', requestReport.statusStats.pending],
+      ['Одобрено', requestReport.statusStats.approved],
+      ['Отклонено', requestReport.statusStats.rejected]
+    ];
+    requestsStatsData.forEach(row => {
+      const dataRow = requestsStatsSheet.addRow(row);
+      dataRow.height = 25;
+      dataRow.getCell(1).font = { name: 'Arial', size: 11, color: { argb: '000000' } };
+      dataRow.getCell(2).font = { name: 'Arial', size: 11, bold: true, color: { argb: '4E7AFF' } };
+    });
+
+    createSheetHeader(requestsHackathonsSheet, 'Статистика по хакатонам', 6);
+    requestsHackathonsSheet.columns = [
+      { width: 40 },
+      { width: 30 },
+      { width: 20 },
+      { width: 20 },
+      { width: 20 },
+      { width: 20 }
+    ];
+    createTableHeader(requestsHackathonsSheet, [
+      'Хакатон',
+      'Даты проведения',
+      'На рассмотрении',
+      'Одобрено',
+      'Отклонено',
+      'Всего заявок'
+    ]);
+    requestReport.hackathonStats.forEach(hackathon => {
+      const dates = `${format(new Date(hackathon.startDate), 'd MMM', { locale: ru })} - ${format(new Date(hackathon.endDate), 'd MMM yyyy', { locale: ru })}`;
+      const hackathonRow = requestsHackathonsSheet.addRow([
+        hackathon.title,
+        dates,
+        hackathon.stats.pending,
+        hackathon.stats.approved,
+        hackathon.stats.rejected,
+        hackathon.stats.total
+      ]);
+      hackathonRow.height = 25;
+      hackathonRow.eachCell((cell) => {
+        cell.font = {
+          name: 'Arial',
+          size: 11,
+          color: { argb: '000000' }
+        };
+      });
+    });
+
+    createSheetHeader(requestsListSheet, 'Последние заявки', 7);
+    requestsListSheet.columns = [
+      { width: 20 },
+      { width: 30 },
+      { width: 35 },
+      { width: 40 },
+      { width: 30 },
+      { width: 20 },
+      { width: 20 }
+    ];
+    createTableHeader(requestsListSheet, [
+      'Статус',
+      'Пользователь',
+      'Email',
+      'Хакатон',
+      'Даты хакатона',
+      'Регистрация',
+      'Дата заявки'
+    ]);
+    requestReport.recentRequests.forEach(request => {
+      const dates = `${format(new Date(request.hackathonStartDate), 'd MMM', { locale: ru })} - ${format(new Date(request.hackathonEndDate), 'd MMM yyyy', { locale: ru })}`;
+      const requestRow = requestsListSheet.addRow([
+        getRequestStatusText(request.status),
+        request.userName,
+        request.userEmail,
+        request.hackathonTitle,
+        dates,
+        request.hackathonIsOpen ? 'Открыта' : 'Закрыта',
+        format(new Date(request.createdAt), 'dd.MM.yyyy HH:mm', { locale: ru })
+      ]);
+      requestRow.height = 25;
+      requestRow.eachCell((cell, colNumber) => {
+        cell.font = {
+          name: 'Arial',
+          size: 11,
+          color: { argb: '000000' }
+        };
+        if (colNumber === 1) {
+          switch (request.status.toLowerCase()) {
+            case 'pending':
+              cell.font.color = { argb: '0000FF' };
+              break;
+            case 'approved':
+              cell.font.color = { argb: '008000' };
+              break;
+            case 'rejected':
+              cell.font.color = { argb: 'FF0000' };
+              break;
+          }
+        }
+        if (colNumber === 6) {
+          cell.font.color = { argb: request.hackathonIsOpen ? '008000' : 'FF0000' };
+        }
+      });
+    });
+
+    // Добавляем границы для всех листов
+    workbook.worksheets.forEach(sheet => {
+      sheet.eachRow((row) => {
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'E5E7EB' } },
+            left: { style: 'thin', color: { argb: 'E5E7EB' } },
+            bottom: { style: 'thin', color: { argb: 'E5E7EB' } },
+            right: { style: 'thin', color: { argb: 'E5E7EB' } }
+          };
+        });
+      });
+    });
+
+    // Сохраняем файл
+    const date = format(new Date(), 'dd.MM.yyyy_HH-mm-ss', { locale: ru });
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Общий_отчет_${date}.xlsx`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+
   const renderReportSelector = () => (
     <div className="h-full flex-1 flex-col space-y-8 p-8 flex">
       <div className="flex items-center justify-between space-y-2">
@@ -366,6 +844,13 @@ export default function ReportsPage() {
             </p>
           </div>
         </div>
+        <Button
+          onClick={exportAllReports}
+          className="flex items-center gap-2 bg-[#4E7AFF] text-white hover:bg-[#4E7AFF]/90 transition-all duration-200"
+        >
+          <Download className="h-4 w-4" />
+          Экспорт всех отчетов
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -463,28 +948,18 @@ export default function ReportsPage() {
   );
 
   const ReportHeader = ({ icon: Icon, title, onBack }: { icon: any, title: string, onBack: () => void }) => (
-    <div className="flex items-center justify-between mb-8">
-      <div className="flex items-center gap-3">
-        <div className="bg-[#4E7AFF]/10 p-2.5 rounded-xl">
-          <Icon className="w-6 h-6 text-[#4E7AFF]" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-[#4E7AFF] to-[#4E7AFF]/60 bg-clip-text text-transparent">
-            {title}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Просмотр статистики и аналитики
-          </p>
-        </div>
+    <div className="flex items-center gap-3">
+      <div className="bg-[#4E7AFF]/10 p-2.5 rounded-xl">
+        <Icon className="w-6 h-6 text-[#4E7AFF]" />
       </div>
-      <Button
-        variant="outline"
-        onClick={onBack}
-        className="flex items-center gap-2 transition-all duration-200 hover:bg-[#4E7AFF]/5 hover:text-[#4E7AFF] hover:border-[#4E7AFF]"
-      >
-        <ChevronLeft className="h-4 w-4" />
-        Назад
-      </Button>
+      <div>
+        <h1 className="text-2xl font-bold bg-gradient-to-r from-[#4E7AFF] to-[#4E7AFF]/60 bg-clip-text text-transparent">
+          {title}
+        </h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Просмотр статистики и аналитики
+        </p>
+      </div>
     </div>
   );
 
@@ -537,13 +1012,1320 @@ export default function ReportsPage() {
     </div>
   );
 
+  const exportToExcel = async (userReport: UserReport) => {
+    const workbook = new Excel.Workbook();
+    workbook.creator = 'Codigma';
+    workbook.created = new Date();
+
+    // Создаем лист с общей статистикой
+    const statsSheet = workbook.addWorksheet('Общая статистика', {
+      properties: { tabColor: { argb: '4E7AFF' } }
+    });
+
+    // Устанавливаем ширину столбцов
+    statsSheet.columns = [
+      { width: 50 },
+      { width: 30 }
+    ];
+
+    // Добавляем заголовок
+    statsSheet.mergeCells('A1:B1');
+    const titleRow = statsSheet.getRow(1);
+    titleRow.height = 40;
+    const titleCell = titleRow.getCell(1);
+    titleCell.value = 'Общая статистика по пользователям';
+    titleCell.font = {
+      name: 'Arial',
+      size: 16,
+      bold: true,
+      color: { argb: 'FFFFFF' }
+    };
+    titleCell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '4E7AFF' }
+    };
+    titleCell.alignment = {
+      horizontal: 'center',
+      vertical: 'middle'
+    };
+
+    // Добавляем пустую строку
+    statsSheet.addRow([]);
+
+    // Добавляем заголовки таблицы
+    const headerRow = statsSheet.addRow(['Показатель', 'Значение']);
+    headerRow.height = 30;
+    headerRow.eachCell((cell) => {
+      cell.font = {
+        name: 'Arial',
+        size: 12,
+        bold: true,
+        color: { argb: '4E7AFF' }
+      };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'F8F9FA' }
+      };
+      cell.alignment = {
+        horizontal: 'center',
+        vertical: 'middle'
+      };
+      cell.border = {
+        bottom: { style: 'thin', color: { argb: '4E7AFF' } }
+      };
+    });
+
+    // Добавляем данные
+    const data = [
+      ['Всего пользователей', userReport.totalUsers],
+      ['Всего решено задач', userReport.taskStats.total],
+      ['Среднее количество задач на пользователя', userReport.taskStats.average],
+      ['Максимум решенных задач', userReport.taskStats.max],
+      ['Всего участий в хакатонах', userReport.hackathonStats.total],
+      ['Среднее количество хакатонов на пользователя', userReport.hackathonStats.average],
+      ['Максимум участий в хакатонах', userReport.hackathonStats.max]
+    ];
+
+    data.forEach((row) => {
+      const dataRow = statsSheet.addRow(row);
+      dataRow.height = 25;
+      dataRow.getCell(1).font = {
+        name: 'Arial',
+        size: 11,
+        color: { argb: '000000' }
+      };
+      dataRow.getCell(2).font = {
+        name: 'Arial',
+        size: 11,
+        bold: true,
+        color: { argb: '4E7AFF' }
+      };
+      dataRow.eachCell((cell) => {
+        cell.alignment = {
+          horizontal: 'center',
+          vertical: 'middle'
+        };
+        cell.border = {
+          bottom: { style: 'thin', color: { argb: 'E5E7EB' } }
+        };
+      });
+    });
+
+    // Создаем лист с топом пользователей
+    const usersSheet = workbook.addWorksheet('Топ пользователей', {
+      properties: { tabColor: { argb: '4E7AFF' } }
+    });
+
+    // Устанавливаем ширину столбцов
+    usersSheet.columns = [
+      { width: 40 },
+      { width: 15 },
+      { width: 20 },
+      { width: 25 }
+    ];
+
+    // Добавляем заголовок
+    usersSheet.mergeCells('A1:D1');
+    const usersTitleRow = usersSheet.getRow(1);
+    usersTitleRow.height = 40;
+    const usersTitleCell = usersTitleRow.getCell(1);
+    usersTitleCell.value = 'Топ пользователей';
+    usersTitleCell.font = {
+      name: 'Arial',
+      size: 16,
+      bold: true,
+      color: { argb: 'FFFFFF' }
+    };
+    usersTitleCell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '4E7AFF' }
+    };
+    usersTitleCell.alignment = {
+      horizontal: 'center',
+      vertical: 'middle'
+    };
+
+    // Добавляем пустую строку
+    usersSheet.addRow([]);
+
+    // Добавляем заголовки таблицы
+    const usersHeaderRow = usersSheet.addRow(['Пользователь', 'Баллы', 'Решено задач', 'Участие в хакатонах']);
+    usersHeaderRow.height = 30;
+    usersHeaderRow.eachCell((cell) => {
+      cell.font = {
+        name: 'Arial',
+        size: 12,
+        bold: true,
+        color: { argb: '4E7AFF' }
+      };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'F8F9FA' }
+      };
+      cell.alignment = {
+        horizontal: 'center',
+        vertical: 'middle'
+      };
+      cell.border = {
+        bottom: { style: 'thin', color: { argb: '4E7AFF' } }
+      };
+    });
+
+    // Добавляем данные пользователей
+    userReport.topUsers.forEach((user) => {
+      const userRow = usersSheet.addRow([
+        user.displayName,
+        Number(user.totalScore.toFixed(1)),
+        user.tasksCompleted,
+        user.hackathonsParticipated
+      ]);
+      userRow.height = 25;
+      userRow.eachCell((cell, colNumber) => {
+        cell.font = {
+          name: 'Arial',
+          size: 11,
+          color: colNumber === 2 ? { argb: '4E7AFF' } : { argb: '000000' },
+          bold: colNumber === 2
+        };
+        cell.alignment = {
+          horizontal: 'center',
+          vertical: 'middle'
+        };
+        cell.border = {
+          bottom: { style: 'thin', color: { argb: 'E5E7EB' } }
+        };
+      });
+    });
+
+    // Добавляем границы для всех ячеек
+    [statsSheet, usersSheet].forEach(sheet => {
+      sheet.eachRow((row) => {
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'E5E7EB' } },
+            left: { style: 'thin', color: { argb: 'E5E7EB' } },
+            bottom: { style: 'thin', color: { argb: 'E5E7EB' } },
+            right: { style: 'thin', color: { argb: 'E5E7EB' } }
+          };
+        });
+      });
+    });
+
+    // Сохраняем файл
+    const date = format(new Date(), 'dd.MM.yyyy_HH-mm-ss', { locale: ru });
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Отчет_по_пользователям_${date}.xlsx`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const exportHackathonsToExcel = async (hackathonReport: HackathonReport) => {
+    const workbook = new Excel.Workbook();
+    workbook.creator = 'Codigma';
+    workbook.created = new Date();
+
+    // Создаем лист с общей статистикой
+    const statsSheet = workbook.addWorksheet('Общая статистика', {
+      properties: { tabColor: { argb: '4E7AFF' } }
+    });
+
+    // Устанавливаем ширину столбцов
+    statsSheet.columns = [
+      { width: 50 },
+      { width: 30 }
+    ];
+
+    // Добавляем заголовок
+    statsSheet.mergeCells('A1:B1');
+    const titleRow = statsSheet.getRow(1);
+    titleRow.height = 40;
+    const titleCell = titleRow.getCell(1);
+    titleCell.value = 'Общая статистика по хакатонам';
+    titleCell.font = {
+      name: 'Arial',
+      size: 16,
+      bold: true,
+      color: { argb: 'FFFFFF' }
+    };
+    titleCell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '4E7AFF' }
+    };
+    titleCell.alignment = {
+      horizontal: 'center',
+      vertical: 'middle'
+    };
+
+    // Добавляем пустую строку
+    statsSheet.addRow([]);
+
+    // Добавляем заголовки таблицы
+    const headerRow = statsSheet.addRow(['Показатель', 'Значение']);
+    headerRow.height = 30;
+    headerRow.eachCell((cell) => {
+      cell.font = {
+        name: 'Arial',
+        size: 12,
+        bold: true,
+        color: { argb: '4E7AFF' }
+      };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'F8F9FA' }
+      };
+      cell.alignment = {
+        horizontal: 'center',
+        vertical: 'middle'
+      };
+      cell.border = {
+        bottom: { style: 'thin', color: { argb: '4E7AFF' } }
+      };
+    });
+
+    // Добавляем данные
+    const data = [
+      ['Всего хакатонов', hackathonReport.totalHackathons],
+      ['Предстоящие хакатоны', hackathonReport.status.upcoming],
+      ['Активные хакатоны', hackathonReport.status.active],
+      ['Завершенные хакатоны', hackathonReport.status.completed],
+      ['Открытые для регистрации', hackathonReport.status.active],
+      ['Закрытые для регистрации', hackathonReport.status.completed]
+    ];
+
+    data.forEach((row) => {
+      const dataRow = statsSheet.addRow(row);
+      dataRow.height = 25;
+      dataRow.getCell(1).font = {
+        name: 'Arial',
+        size: 11,
+        color: { argb: '000000' }
+      };
+      dataRow.getCell(2).font = {
+        name: 'Arial',
+        size: 11,
+        bold: true,
+        color: { argb: '4E7AFF' }
+      };
+      dataRow.eachCell((cell) => {
+        cell.alignment = {
+          horizontal: 'center',
+          vertical: 'middle'
+        };
+        cell.border = {
+          bottom: { style: 'thin', color: { argb: 'E5E7EB' } }
+        };
+      });
+    });
+
+    // Создаем лист со списком хакатонов
+    const hackathonsSheet = workbook.addWorksheet('Список хакатонов', {
+      properties: { tabColor: { argb: '4E7AFF' } }
+    });
+
+    // Устанавливаем ширину столбцов
+    hackathonsSheet.columns = [
+      { width: 40 }, // Название
+      { width: 20 }, // Статус
+      { width: 20 }, // Регистрация
+      { width: 30 }, // Даты проведения
+      { width: 15 }, // Участников
+      { width: 15 }  // Средний балл
+    ];
+
+    // Добавляем заголовок
+    hackathonsSheet.mergeCells('A1:F1');
+    const hackathonsTitleRow = hackathonsSheet.getRow(1);
+    hackathonsTitleRow.height = 40;
+    const hackathonsTitleCell = hackathonsTitleRow.getCell(1);
+    hackathonsTitleCell.value = 'Список хакатонов';
+    hackathonsTitleCell.font = {
+      name: 'Arial',
+      size: 16,
+      bold: true,
+      color: { argb: 'FFFFFF' }
+    };
+    hackathonsTitleCell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '4E7AFF' }
+    };
+    hackathonsTitleCell.alignment = {
+      horizontal: 'center',
+      vertical: 'middle'
+    };
+
+    // Добавляем пустую строку
+    hackathonsSheet.addRow([]);
+
+    // Добавляем заголовки таблицы
+    const hackathonsHeaderRow = hackathonsSheet.addRow([
+      'Название',
+      'Статус',
+      'Регистрация',
+      'Даты проведения',
+      'Участников',
+      'Средний балл'
+    ]);
+    hackathonsHeaderRow.height = 30;
+    hackathonsHeaderRow.eachCell((cell) => {
+      cell.font = {
+        name: 'Arial',
+        size: 12,
+        bold: true,
+        color: { argb: '4E7AFF' }
+      };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'F8F9FA' }
+      };
+      cell.alignment = {
+        horizontal: 'center',
+        vertical: 'middle'
+      };
+      cell.border = {
+        bottom: { style: 'thin', color: { argb: '4E7AFF' } }
+      };
+    });
+
+    // Добавляем данные хакатонов
+    hackathonReport.hackathons.forEach((hackathon) => {
+      const dates = `${format(new Date(hackathon.startDate), 'd MMM', { locale: ru })} - ${format(new Date(hackathon.endDate), 'd MMM yyyy', { locale: ru })}`;
+      const status = getStatusText(hackathon.status);
+      const registration = hackathon.isOpen ? "Открыта" : "Закрыта";
+
+      const hackathonRow = hackathonsSheet.addRow([
+        hackathon.title,
+        status,
+        registration,
+        dates,
+        hackathon.participantsCount,
+        hackathon.averageScore.toFixed(1)
+      ]);
+
+      hackathonRow.height = 25;
+      hackathonRow.eachCell((cell, colNumber) => {
+        cell.font = {
+          name: 'Arial',
+          size: 11,
+          color: colNumber === 5 ? { argb: '4E7AFF' } : { argb: '000000' },
+          bold: colNumber === 5
+        };
+        cell.alignment = {
+          horizontal: 'center',
+          vertical: 'middle'
+        };
+        cell.border = {
+          bottom: { style: 'thin', color: { argb: 'E5E7EB' } }
+        };
+      });
+
+      // Добавляем цветовое оформление для статуса
+      const statusCell = hackathonRow.getCell(2);
+      switch (hackathon.status) {
+        case 'upcoming':
+          statusCell.font.color = { argb: '0000FF' }; // Синий
+          break;
+        case 'active':
+          statusCell.font.color = { argb: '008000' }; // Зеленый
+          break;
+        case 'completed':
+          statusCell.font.color = { argb: '808080' }; // Серый
+          break;
+      }
+
+      // Добавляем цветовое оформление для регистрации
+      const registrationCell = hackathonRow.getCell(3);
+      registrationCell.font.color = { argb: hackathon.isOpen ? '008000' : 'FF0000' };
+    });
+
+    // Добавляем границы для всех ячеек
+    [statsSheet, hackathonsSheet].forEach(sheet => {
+      sheet.eachRow((row) => {
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'E5E7EB' } },
+            left: { style: 'thin', color: { argb: 'E5E7EB' } },
+            bottom: { style: 'thin', color: { argb: 'E5E7EB' } },
+            right: { style: 'thin', color: { argb: 'E5E7EB' } }
+          };
+        });
+      });
+    });
+
+    // Сохраняем файл
+    const date = format(new Date(), 'dd.MM.yyyy_HH-mm-ss', { locale: ru });
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Отчет_по_хакатонам_${date}.xlsx`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const exportTasksToExcel = async (taskReport: TaskReport) => {
+    const workbook = new Excel.Workbook();
+    workbook.creator = 'Codigma';
+    workbook.created = new Date();
+
+    // Создаем лист с общей статистикой
+    const statsSheet = workbook.addWorksheet('Общая статистика', {
+      properties: { tabColor: { argb: '4E7AFF' } }
+    });
+
+    // Устанавливаем ширину столбцов
+    statsSheet.columns = [
+      { width: 50 },
+      { width: 30 }
+    ];
+
+    // Добавляем заголовок
+    statsSheet.mergeCells('A1:B1');
+    const titleRow = statsSheet.getRow(1);
+    titleRow.height = 40;
+    const titleCell = titleRow.getCell(1);
+    titleCell.value = 'Общая статистика по задачам';
+    titleCell.font = {
+      name: 'Arial',
+      size: 16,
+      bold: true,
+      color: { argb: 'FFFFFF' }
+    };
+    titleCell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '4E7AFF' }
+    };
+    titleCell.alignment = {
+      horizontal: 'center',
+      vertical: 'middle'
+    };
+
+    // Добавляем пустую строку
+    statsSheet.addRow([]);
+
+    // Добавляем заголовки таблицы
+    const headerRow = statsSheet.addRow(['Показатель', 'Значение']);
+    headerRow.height = 30;
+    headerRow.eachCell((cell) => {
+      cell.font = {
+        name: 'Arial',
+        size: 12,
+        bold: true,
+        color: { argb: '4E7AFF' }
+      };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'F8F9FA' }
+      };
+      cell.alignment = {
+        horizontal: 'center',
+        vertical: 'middle'
+      };
+      cell.border = {
+        bottom: { style: 'thin', color: { argb: '4E7AFF' } }
+      };
+    });
+
+    // Добавляем данные
+    const data = [
+      ['Всего задач', taskReport.totalTasks],
+      ['Легкие задачи', taskReport.difficulty.easy],
+      ['Средние задачи', taskReport.difficulty.medium],
+      ['Сложные задачи', taskReport.difficulty.hard],
+      ['Минимум тест-кейсов', taskReport.testCases.min],
+      ['Максимум тест-кейсов', taskReport.testCases.max],
+      ['Среднее количество тест-кейсов', taskReport.testCases.average.toFixed(1)]
+    ];
+
+    data.forEach((row) => {
+      const dataRow = statsSheet.addRow(row);
+      dataRow.height = 25;
+      dataRow.getCell(1).font = {
+        name: 'Arial',
+        size: 11,
+        color: { argb: '000000' }
+      };
+      dataRow.getCell(2).font = {
+        name: 'Arial',
+        size: 11,
+        bold: true,
+        color: { argb: '4E7AFF' }
+      };
+      dataRow.eachCell((cell) => {
+        cell.alignment = {
+          horizontal: 'center',
+          vertical: 'middle'
+        };
+        cell.border = {
+          bottom: { style: 'thin', color: { argb: 'E5E7EB' } }
+        };
+      });
+    });
+
+    // Создаем лист с топом задач
+    const tasksSheet = workbook.addWorksheet('Топ задач', {
+      properties: { tabColor: { argb: '4E7AFF' } }
+    });
+
+    // Устанавливаем ширину столбцов
+    tasksSheet.columns = [
+      { width: 50 }, // Название
+      { width: 20 }, // Сложность
+      { width: 25 }  // Тест-кейсы
+    ];
+
+    // Добавляем заголовок
+    tasksSheet.mergeCells('A1:C1');
+    const tasksTitleRow = tasksSheet.getRow(1);
+    tasksTitleRow.height = 40;
+    const tasksTitleCell = tasksTitleRow.getCell(1);
+    tasksTitleCell.value = 'Топ задач по количеству тест-кейсов';
+    tasksTitleCell.font = {
+      name: 'Arial',
+      size: 16,
+      bold: true,
+      color: { argb: 'FFFFFF' }
+    };
+    tasksTitleCell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '4E7AFF' }
+    };
+    tasksTitleCell.alignment = {
+      horizontal: 'center',
+      vertical: 'middle'
+    };
+
+    // Добавляем пустую строку
+    tasksSheet.addRow([]);
+
+    // Добавляем заголовки таблицы
+    const tasksHeaderRow = tasksSheet.addRow([
+      'Название задачи',
+      'Сложность',
+      'Количество тест-кейсов'
+    ]);
+    tasksHeaderRow.height = 30;
+    tasksHeaderRow.eachCell((cell) => {
+      cell.font = {
+        name: 'Arial',
+        size: 12,
+        bold: true,
+        color: { argb: '4E7AFF' }
+      };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'F8F9FA' }
+      };
+      cell.alignment = {
+        horizontal: 'center',
+        vertical: 'middle'
+      };
+      cell.border = {
+        bottom: { style: 'thin', color: { argb: '4E7AFF' } }
+      };
+    });
+
+    // Добавляем данные задач
+    taskReport.topTasksByTestCases.forEach((task) => {
+      const taskRow = tasksSheet.addRow([
+        task.title,
+        task.difficulty,
+        task.testCasesCount
+      ]);
+      taskRow.height = 25;
+      taskRow.eachCell((cell, colNumber) => {
+        cell.font = {
+          name: 'Arial',
+          size: 11,
+          color: colNumber === 2 ? { argb: '4E7AFF' } : { argb: '000000' },
+          bold: colNumber === 2
+        };
+        cell.alignment = {
+          horizontal: 'center',
+          vertical: 'middle'
+        };
+        cell.border = {
+          bottom: { style: 'thin', color: { argb: 'E5E7EB' } }
+        };
+      });
+    });
+
+    // Добавляем границы для всех ячеек
+    [statsSheet, tasksSheet].forEach(sheet => {
+      sheet.eachRow((row) => {
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'E5E7EB' } },
+            left: { style: 'thin', color: { argb: 'E5E7EB' } },
+            bottom: { style: 'thin', color: { argb: 'E5E7EB' } },
+            right: { style: 'thin', color: { argb: 'E5E7EB' } }
+          };
+        });
+      });
+    });
+
+    // Сохраняем файл
+    const date = format(new Date(), 'dd.MM.yyyy_HH-mm-ss', { locale: ru });
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Отчет_по_задачам_${date}.xlsx`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const exportSubmissionsToExcel = async (submissionReport: SubmissionReport) => {
+    const workbook = new Excel.Workbook();
+    workbook.creator = 'Codigma';
+    workbook.created = new Date();
+
+    // Создаем лист с общей статистикой
+    const statsSheet = workbook.addWorksheet('Общая статистика', {
+      properties: { tabColor: { argb: '4E7AFF' } }
+    });
+
+    // Устанавливаем ширину столбцов
+    statsSheet.columns = [
+      { width: 50 },
+      { width: 30 }
+    ];
+
+    // Добавляем заголовок
+    statsSheet.mergeCells('A1:B1');
+    const titleRow = statsSheet.getRow(1);
+    titleRow.height = 40;
+    const titleCell = titleRow.getCell(1);
+    titleCell.value = 'Общая статистика по решениям';
+    titleCell.font = {
+      name: 'Arial',
+      size: 16,
+      bold: true,
+      color: { argb: 'FFFFFF' }
+    };
+    titleCell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '4E7AFF' }
+    };
+    titleCell.alignment = {
+      horizontal: 'center',
+      vertical: 'middle'
+    };
+
+    // Добавляем пустую строку
+    statsSheet.addRow([]);
+
+    // Добавляем заголовки таблицы
+    const headerRow = statsSheet.addRow(['Показатель', 'Значение']);
+    headerRow.height = 30;
+    headerRow.eachCell((cell) => {
+      cell.font = {
+        name: 'Arial',
+        size: 12,
+        bold: true,
+        color: { argb: '4E7AFF' }
+      };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'F8F9FA' }
+      };
+      cell.alignment = {
+        horizontal: 'center',
+        vertical: 'middle'
+      };
+      cell.border = {
+        bottom: { style: 'thin', color: { argb: '4E7AFF' } }
+      };
+    });
+
+    // Добавляем данные
+    const data = [
+      ['Всего решений', submissionReport.totalSubmissions],
+      ['Ожидают проверки', submissionReport.statusStats.pending],
+      ['В обработке', submissionReport.statusStats.processing],
+      ['Принято', submissionReport.statusStats.accepted],
+      ['Отклонено', submissionReport.statusStats.rejected],
+      ['Ошибка', submissionReport.statusStats.error],
+      ['Процент успешных тестов', `${submissionReport.performanceStats.testsPassedPercent.toFixed(1)}%`],
+      ['Минимальное использование памяти', formatBytes(submissionReport.performanceStats.memory.min)],
+      ['Максимальное использование памяти', formatBytes(submissionReport.performanceStats.memory.max)],
+      ['Среднее использование памяти', formatBytes(submissionReport.performanceStats.memory.average)],
+      ['Минимальное время выполнения', formatTime(submissionReport.performanceStats.executionTime.min)],
+      ['Максимальное время выполнения', formatTime(submissionReport.performanceStats.executionTime.max)],
+      ['Среднее время выполнения', formatTime(submissionReport.performanceStats.executionTime.average)]
+    ];
+
+    data.forEach((row) => {
+      const dataRow = statsSheet.addRow(row);
+      dataRow.height = 25;
+      dataRow.getCell(1).font = {
+        name: 'Arial',
+        size: 11,
+        color: { argb: '000000' }
+      };
+      dataRow.getCell(2).font = {
+        name: 'Arial',
+        size: 11,
+        bold: true,
+        color: { argb: '4E7AFF' }
+      };
+      dataRow.eachCell((cell) => {
+        cell.alignment = {
+          horizontal: 'center',
+          vertical: 'middle'
+        };
+        cell.border = {
+          bottom: { style: 'thin', color: { argb: 'E5E7EB' } }
+        };
+      });
+    });
+
+    // Создаем лист с последними решениями
+    const submissionsSheet = workbook.addWorksheet('Последние решения', {
+      properties: { tabColor: { argb: '4E7AFF' } }
+    });
+
+    // Устанавливаем ширину столбцов
+    submissionsSheet.columns = [
+      { width: 15 }, // Статус
+      { width: 40 }, // Задача
+      { width: 30 }, // Пользователь
+      { width: 30 }, // Хакатон
+      { width: 20 }, // Тесты
+      { width: 25 }, // Память
+      { width: 25 }, // Время
+      { width: 15 }, // Язык
+      { width: 20 }  // Дата
+    ];
+
+    // Добавляем заголовок
+    submissionsSheet.mergeCells('A1:I1');
+    const submissionsTitleRow = submissionsSheet.getRow(1);
+    submissionsTitleRow.height = 40;
+    const submissionsTitleCell = submissionsTitleRow.getCell(1);
+    submissionsTitleCell.value = 'Последние решения';
+    submissionsTitleCell.font = {
+      name: 'Arial',
+      size: 16,
+      bold: true,
+      color: { argb: 'FFFFFF' }
+    };
+    submissionsTitleCell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '4E7AFF' }
+    };
+    submissionsTitleCell.alignment = {
+      horizontal: 'center',
+      vertical: 'middle'
+    };
+
+    // Добавляем пустую строку
+    submissionsSheet.addRow([]);
+
+    // Добавляем заголовки таблицы
+    const submissionsHeaderRow = submissionsSheet.addRow([
+      'Статус',
+      'Задача',
+      'Пользователь',
+      'Хакатон',
+      'Тесты',
+      'Память',
+      'Время',
+      'Язык',
+      'Дата'
+    ]);
+    submissionsHeaderRow.height = 30;
+    submissionsHeaderRow.eachCell((cell) => {
+      cell.font = {
+        name: 'Arial',
+        size: 12,
+        bold: true,
+        color: { argb: '4E7AFF' }
+      };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'F8F9FA' }
+      };
+      cell.alignment = {
+        horizontal: 'center',
+        vertical: 'middle'
+      };
+      cell.border = {
+        bottom: { style: 'thin', color: { argb: '4E7AFF' } }
+      };
+    });
+
+    // Добавляем данные решений
+    submissionReport.recentSubmissions.forEach((submission) => {
+      const submissionRow = submissionsSheet.addRow([
+        submission.status,
+        submission.taskTitle,
+        submission.userName,
+        submission.hackathonTitle || '—',
+        `${submission.testsPassed}/${submission.testsTotal} (${submission.passedPercent.toFixed(1)}%)`,
+        formatBytes(submission.memory),
+        formatTime(submission.executionTime),
+        submission.language || '—',
+        format(new Date(submission.createdAt), 'dd.MM.yyyy HH:mm', { locale: ru })
+      ]);
+
+      submissionRow.height = 25;
+      submissionRow.eachCell((cell, colNumber) => {
+        cell.font = {
+          name: 'Arial',
+          size: 11,
+          color: { argb: '000000' }
+        };
+        cell.alignment = {
+          horizontal: 'center',
+          vertical: 'middle'
+        };
+        cell.border = {
+          bottom: { style: 'thin', color: { argb: 'E5E7EB' } }
+        };
+      });
+
+      // Добавляем цветовое оформление для статуса
+      const statusCell = submissionRow.getCell(1);
+      switch (submission.status.toLowerCase()) {
+        case 'pending':
+          statusCell.font.color = { argb: '0000FF' }; // Синий
+          break;
+        case 'processing':
+          statusCell.font.color = { argb: 'FFA500' }; // Оранжевый
+          break;
+        case 'accepted':
+          statusCell.font.color = { argb: '008000' }; // Зеленый
+          break;
+        case 'rejected':
+          statusCell.font.color = { argb: 'FF0000' }; // Красный
+          break;
+        case 'error':
+          statusCell.font.color = { argb: 'FF6B00' }; // Оранжево-красный
+          break;
+      }
+    });
+
+    // Добавляем границы для всех ячеек
+    [statsSheet, submissionsSheet].forEach(sheet => {
+      sheet.eachRow((row) => {
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'E5E7EB' } },
+            left: { style: 'thin', color: { argb: 'E5E7EB' } },
+            bottom: { style: 'thin', color: { argb: 'E5E7EB' } },
+            right: { style: 'thin', color: { argb: 'E5E7EB' } }
+          };
+        });
+      });
+    });
+
+    // Сохраняем файл
+    const date = format(new Date(), 'dd.MM.yyyy_HH-mm-ss', { locale: ru });
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Отчет_по_решениям_${date}.xlsx`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const exportRequestsToExcel = async (requestReport: RequestReport) => {
+    const workbook = new Excel.Workbook();
+    workbook.creator = 'Codigma';
+    workbook.created = new Date();
+
+    // Создаем лист с общей статистикой
+    const statsSheet = workbook.addWorksheet('Общая статистика', {
+      properties: { tabColor: { argb: '4E7AFF' } }
+    });
+
+    // Устанавливаем ширину столбцов
+    statsSheet.columns = [
+      { width: 50 },
+      { width: 30 }
+    ];
+
+    // Добавляем заголовок
+    statsSheet.mergeCells('A1:B1');
+    const titleRow = statsSheet.getRow(1);
+    titleRow.height = 40;
+    const titleCell = titleRow.getCell(1);
+    titleCell.value = 'Общая статистика по заявкам';
+    titleCell.font = {
+      name: 'Arial',
+      size: 16,
+      bold: true,
+      color: { argb: 'FFFFFF' }
+    };
+    titleCell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '4E7AFF' }
+    };
+    titleCell.alignment = {
+      horizontal: 'center',
+      vertical: 'middle'
+    };
+
+    // Добавляем пустую строку
+    statsSheet.addRow([]);
+
+    // Добавляем заголовки таблицы
+    const headerRow = statsSheet.addRow(['Показатель', 'Значение']);
+    headerRow.height = 30;
+    headerRow.eachCell((cell) => {
+      cell.font = {
+        name: 'Arial',
+        size: 12,
+        bold: true,
+        color: { argb: '4E7AFF' }
+      };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'F8F9FA' }
+      };
+      cell.alignment = {
+        horizontal: 'center',
+        vertical: 'middle'
+      };
+      cell.border = {
+        bottom: { style: 'thin', color: { argb: '4E7AFF' } }
+      };
+    });
+
+    // Добавляем данные
+    const data = [
+      ['Всего заявок', requestReport.totalRequests],
+      ['На рассмотрении', requestReport.statusStats.pending],
+      ['Одобрено', requestReport.statusStats.approved],
+      ['Отклонено', requestReport.statusStats.rejected]
+    ];
+
+    data.forEach((row) => {
+      const dataRow = statsSheet.addRow(row);
+      dataRow.height = 25;
+      dataRow.getCell(1).font = {
+        name: 'Arial',
+        size: 11,
+        color: { argb: '000000' }
+      };
+      dataRow.getCell(2).font = {
+        name: 'Arial',
+        size: 11,
+        bold: true,
+        color: { argb: '4E7AFF' }
+      };
+      dataRow.eachCell((cell) => {
+        cell.alignment = {
+          horizontal: 'center',
+          vertical: 'middle'
+        };
+        cell.border = {
+          bottom: { style: 'thin', color: { argb: 'E5E7EB' } }
+        };
+      });
+    });
+
+    // Создаем лист со статистикой по хакатонам
+    const hackathonsSheet = workbook.addWorksheet('Статистика по хакатонам со статусом "закрыт"', {
+      properties: { tabColor: { argb: '4E7AFF' } }
+    });
+
+    // Устанавливаем ширину столбцов
+    hackathonsSheet.columns = [
+      { width: 40 }, // Хакатон
+      { width: 30 }, // Даты проведения
+      { width: 20 }, // На рассмотрении
+      { width: 20 }, // Одобрено
+      { width: 20 }, // Отклонено
+      { width: 20 }  // Всего заявок
+    ];
+
+    // Добавляем заголовок
+    hackathonsSheet.mergeCells('A1:F1');
+    const hackathonsTitleRow = hackathonsSheet.getRow(1);
+    hackathonsTitleRow.height = 40;
+    const hackathonsTitleCell = hackathonsTitleRow.getCell(1);
+    hackathonsTitleCell.value = 'Статистика по хакатонам со статусом "закрыт"';
+    hackathonsTitleCell.font = {
+      name: 'Arial',
+      size: 16,
+      bold: true,
+      color: { argb: 'FFFFFF' }
+    };
+    hackathonsTitleCell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '4E7AFF' }
+    };
+    hackathonsTitleCell.alignment = {
+      horizontal: 'center',
+      vertical: 'middle'
+    };
+
+    // Добавляем пустую строку
+    hackathonsSheet.addRow([]);
+
+    // Добавляем заголовки таблицы
+    const hackathonsHeaderRow = hackathonsSheet.addRow([
+      'Хакатон',
+      'Даты проведения',
+      'На рассмотрении',
+      'Одобрено',
+      'Отклонено',
+      'Всего заявок'
+    ]);
+    hackathonsHeaderRow.height = 30;
+    hackathonsHeaderRow.eachCell((cell) => {
+      cell.font = {
+        name: 'Arial',
+        size: 12,
+        bold: true,
+        color: { argb: '4E7AFF' }
+      };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'F8F9FA' }
+      };
+      cell.alignment = {
+        horizontal: 'center',
+        vertical: 'middle'
+      };
+      cell.border = {
+        bottom: { style: 'thin', color: { argb: '4E7AFF' } }
+      };
+    });
+
+    // Добавляем данные хакатонов
+    requestReport.hackathonStats.forEach((hackathon) => {
+      const dates = `${format(new Date(hackathon.startDate), 'd MMM', { locale: ru })} - ${format(new Date(hackathon.endDate), 'd MMM yyyy', { locale: ru })}`;
+      
+      const hackathonRow = hackathonsSheet.addRow([
+        hackathon.title,
+        dates,
+        hackathon.stats.pending,
+        hackathon.stats.approved,
+        hackathon.stats.rejected,
+        hackathon.stats.total
+      ]);
+
+      hackathonRow.height = 25;
+      hackathonRow.eachCell((cell, colNumber) => {
+        cell.font = {
+          name: 'Arial',
+          size: 11,
+          color: { argb: '000000' }
+        };
+        cell.alignment = {
+          horizontal: 'center',
+          vertical: 'middle'
+        };
+        cell.border = {
+          bottom: { style: 'thin', color: { argb: 'E5E7EB' } }
+        };
+      });
+    });
+
+    // Создаем лист с последними заявками
+    const requestsSheet = workbook.addWorksheet('Последние заявки', {
+      properties: { tabColor: { argb: '4E7AFF' } }
+    });
+
+    // Устанавливаем ширину столбцов
+    requestsSheet.columns = [
+      { width: 20 }, // Статус
+      { width: 30 }, // Пользователь
+      { width: 35 }, // Email
+      { width: 40 }, // Хакатон
+      { width: 30 }, // Даты хакатона
+      { width: 20 }, // Регистрация
+      { width: 20 }  // Дата заявки
+    ];
+
+    // Добавляем заголовок
+    requestsSheet.mergeCells('A1:G1');
+    const requestsTitleRow = requestsSheet.getRow(1);
+    requestsTitleRow.height = 40;
+    const requestsTitleCell = requestsTitleRow.getCell(1);
+    requestsTitleCell.value = 'Последние заявки';
+    requestsTitleCell.font = {
+      name: 'Arial',
+      size: 16,
+      bold: true,
+      color: { argb: 'FFFFFF' }
+    };
+    requestsTitleCell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: '4E7AFF' }
+    };
+    requestsTitleCell.alignment = {
+      horizontal: 'center',
+      vertical: 'middle'
+    };
+
+    // Добавляем пустую строку
+    requestsSheet.addRow([]);
+
+    // Добавляем заголовки таблицы
+    const requestsHeaderRow = requestsSheet.addRow([
+      'Статус',
+      'Пользователь',
+      'Email',
+      'Хакатон',
+      'Даты хакатона',
+      'Регистрация',
+      'Дата заявки'
+    ]);
+    requestsHeaderRow.height = 30;
+    requestsHeaderRow.eachCell((cell) => {
+      cell.font = {
+        name: 'Arial',
+        size: 12,
+        bold: true,
+        color: { argb: '4E7AFF' }
+      };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'F8F9FA' }
+      };
+      cell.alignment = {
+        horizontal: 'center',
+        vertical: 'middle'
+      };
+      cell.border = {
+        bottom: { style: 'thin', color: { argb: '4E7AFF' } }
+      };
+    });
+
+    // Добавляем данные заявок
+    requestReport.recentRequests.forEach((request) => {
+      const dates = `${format(new Date(request.hackathonStartDate), 'd MMM', { locale: ru })} - ${format(new Date(request.hackathonEndDate), 'd MMM yyyy', { locale: ru })}`;
+      
+      const requestRow = requestsSheet.addRow([
+        getRequestStatusText(request.status),
+        request.userName,
+        request.userEmail,
+        request.hackathonTitle,
+        dates,
+        request.hackathonIsOpen ? 'Открыта' : 'Закрыта',
+        format(new Date(request.createdAt), 'dd.MM.yyyy HH:mm', { locale: ru })
+      ]);
+
+      requestRow.height = 25;
+      requestRow.eachCell((cell, colNumber) => {
+        cell.font = {
+          name: 'Arial',
+          size: 11,
+          color: { argb: '000000' }
+        };
+        cell.alignment = {
+          horizontal: 'center',
+          vertical: 'middle'
+        };
+        cell.border = {
+          bottom: { style: 'thin', color: { argb: 'E5E7EB' } }
+        };
+      });
+
+      // Добавляем цветовое оформление для статуса
+      const statusCell = requestRow.getCell(1);
+      switch (request.status.toLowerCase()) {
+        case 'pending':
+          statusCell.font.color = { argb: '0000FF' }; // Синий
+          break;
+        case 'approved':
+          statusCell.font.color = { argb: '008000' }; // Зеленый
+          break;
+        case 'rejected':
+          statusCell.font.color = { argb: 'FF0000' }; // Красный
+          break;
+      }
+
+      // Добавляем цветовое оформление для регистрации
+      const registrationCell = requestRow.getCell(6);
+      registrationCell.font.color = { argb: request.hackathonIsOpen ? '008000' : 'FF0000' };
+    });
+
+    // Добавляем границы для всех ячеек
+    [statsSheet, hackathonsSheet, requestsSheet].forEach(sheet => {
+      sheet.eachRow((row) => {
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'E5E7EB' } },
+            left: { style: 'thin', color: { argb: 'E5E7EB' } },
+            bottom: { style: 'thin', color: { argb: 'E5E7EB' } },
+            right: { style: 'thin', color: { argb: 'E5E7EB' } }
+          };
+        });
+      });
+    });
+
+    // Сохраняем файл
+    const date = format(new Date(), 'dd.MM.yyyy_HH-mm-ss', { locale: ru });
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Отчет_по_заявкам_${date}.xlsx`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+
   const renderUsersReport = () => (
     <>
-      <ReportHeader 
-        icon={Users} 
-        title="Отчет по пользователям" 
-        onBack={() => setActiveReport(null)} 
-      />
+      <div className="flex items-center justify-between mb-8">
+        <ReportHeader 
+          icon={Users} 
+          title="Отчет по пользователям" 
+          onBack={() => setActiveReport(null)} 
+        />
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={() => setActiveReport(null)}
+            variant="outline"
+            className="flex items-center gap-2 transition-all duration-200 hover:bg-[#4E7AFF]/5 hover:text-[#4E7AFF] hover:border-[#4E7AFF]"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Назад
+          </Button>
+          <Button
+            onClick={() => exportToExcel(userReport)}
+            className="flex items-center gap-2 bg-[#4E7AFF] text-white hover:bg-[#4E7AFF]/90 transition-all duration-200"
+          >
+            <Download className="h-4 w-4" />
+            Экспорт в Excel
+          </Button>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatsCard title="Всего пользователей" icon={Users}>
@@ -607,11 +2389,30 @@ export default function ReportsPage() {
 
   const renderHackathonsReport = () => (
     <>
-      <ReportHeader 
-        icon={Trophy} 
-        title="Отчет по хакатонам" 
-        onBack={() => setActiveReport(null)} 
-      />
+      <div className="flex items-center justify-between mb-8">
+        <ReportHeader 
+          icon={Trophy} 
+          title="Отчет по хакатонам" 
+          onBack={() => setActiveReport(null)} 
+        />
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={() => setActiveReport(null)}
+            variant="outline"
+            className="flex items-center gap-2 transition-all duration-200 hover:bg-[#4E7AFF]/5 hover:text-[#4E7AFF] hover:border-[#4E7AFF]"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Назад
+          </Button>
+          <Button
+            onClick={() => exportHackathonsToExcel(hackathonReport)}
+            className="flex items-center gap-2 bg-[#4E7AFF] text-white hover:bg-[#4E7AFF]/90 transition-all duration-200"
+          >
+            <Download className="h-4 w-4" />
+            Экспорт в Excel
+          </Button>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatsCard title="Всего хакатонов" icon={Trophy}>
@@ -622,11 +2423,11 @@ export default function ReportsPage() {
           <div className="flex justify-between items-center">
             <div>
               <div className="text-sm text-[#4E7AFF]">Открытые</div>
-              <div className="text-2xl font-bold">{hackathonReport.types.open}</div>
+              <div className="text-2xl font-bold">{hackathonReport.status.active}</div>
             </div>
             <div>
               <div className="text-sm text-red-500">Закрытые</div>
-              <div className="text-2xl font-bold">{hackathonReport.types.closed}</div>
+              <div className="text-2xl font-bold">{hackathonReport.status.completed}</div>
             </div>
           </div>
         </StatsCard>
@@ -706,9 +2507,9 @@ export default function ReportsPage() {
           </Table>
           <PaginationControls
             currentPage={currentPage}
-            totalPages={hackathonReport.pagination.totalPages}
+            totalPages={hackathonReport.hackathons.length}
             onPrevPage={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-            onNextPage={() => setCurrentPage(prev => Math.min(hackathonReport.pagination.totalPages, prev + 1))}
+            onNextPage={() => setCurrentPage(prev => Math.min(hackathonReport.hackathons.length, prev + 1))}
           />
         </CardContent>
       </DataTable>
@@ -717,11 +2518,30 @@ export default function ReportsPage() {
 
   const renderTasksReport = () => (
     <>
-      <ReportHeader 
-        icon={Code} 
-        title="Отчет по задачам" 
-        onBack={() => setActiveReport(null)} 
-      />
+      <div className="flex items-center justify-between mb-8">
+        <ReportHeader 
+          icon={Code} 
+          title="Отчет по задачам" 
+          onBack={() => setActiveReport(null)} 
+        />
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={() => setActiveReport(null)}
+            variant="outline"
+            className="flex items-center gap-2 transition-all duration-200 hover:bg-[#4E7AFF]/5 hover:text-[#4E7AFF] hover:border-[#4E7AFF]"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Назад
+          </Button>
+          <Button
+            onClick={() => exportTasksToExcel(taskReport)}
+            className="flex items-center gap-2 bg-[#4E7AFF] text-white hover:bg-[#4E7AFF]/90 transition-all duration-200"
+          >
+            <Download className="h-4 w-4" />
+            Экспорт в Excel
+          </Button>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <StatsCard title="Всего задач" icon={Code}>
@@ -806,11 +2626,30 @@ export default function ReportsPage() {
 
   const renderSubmissionsReport = () => (
     <>
-      <ReportHeader 
-        icon={Send} 
-        title="Отчет по решениям" 
-        onBack={() => setActiveReport(null)} 
-      />
+      <div className="flex items-center justify-between mb-8">
+        <ReportHeader 
+          icon={Send} 
+          title="Отчет по решениям" 
+          onBack={() => setActiveReport(null)} 
+        />
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={() => setActiveReport(null)}
+            variant="outline"
+            className="flex items-center gap-2 transition-all duration-200 hover:bg-[#4E7AFF]/5 hover:text-[#4E7AFF] hover:border-[#4E7AFF]"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Назад
+          </Button>
+          <Button
+            onClick={() => exportSubmissionsToExcel(submissionReport)}
+            className="flex items-center gap-2 bg-[#4E7AFF] text-white hover:bg-[#4E7AFF]/90 transition-all duration-200"
+          >
+            <Download className="h-4 w-4" />
+            Экспорт в Excel
+          </Button>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatsCard title="Всего решений" icon={Send}>
@@ -956,11 +2795,30 @@ export default function ReportsPage() {
 
   const renderRequestsReport = () => (
     <>
-      <ReportHeader 
-        icon={FileQuestion} 
-        title="Отчет по заявкам" 
-        onBack={() => setActiveReport(null)} 
-      />
+      <div className="flex items-center justify-between mb-8">
+        <ReportHeader 
+          icon={FileQuestion} 
+          title="Отчет по заявкам" 
+          onBack={() => setActiveReport(null)} 
+        />
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={() => setActiveReport(null)}
+            variant="outline"
+            className="flex items-center gap-2 transition-all duration-200 hover:bg-[#4E7AFF]/5 hover:text-[#4E7AFF] hover:border-[#4E7AFF]"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Назад
+          </Button>
+          <Button
+            onClick={() => exportRequestsToExcel(requestReport)}
+            className="flex items-center gap-2 bg-[#4E7AFF] text-white hover:bg-[#4E7AFF]/90 transition-all duration-200"
+          >
+            <Download className="h-4 w-4" />
+            Экспорт в Excel
+          </Button>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <StatsCard title="Всего заявок" icon={FileQuestion}>
