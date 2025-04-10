@@ -1,3 +1,5 @@
+"use client";
+
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 import { notFound } from 'next/navigation';
@@ -5,8 +7,10 @@ import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Markdown from 'react-markdown';
-import { Calendar, Users, Trophy, Clock, Info, List, ChevronRight, CalendarCheck, CalendarCheck2Icon, CalendarHeart, CalendarRange, CalendarX, CalendarDaysIcon } from 'lucide-react';
+import { Calendar, Users, Trophy, Clock, Info, List, ChevronRight, CalendarCheck, CalendarCheck2Icon, CalendarHeart, CalendarRange, CalendarX, CalendarDaysIcon, FileText, BarChart } from 'lucide-react';
 import HackathonTimer from '@/components/ui/hackathon-timer';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 async function getHackathon(id: string) {
   const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/hackathons/${id}`, {
@@ -38,17 +42,61 @@ async function getHackathonParticipants(id: string) {
   return response.json();
 }
 
-export default async function HackathonDetailsPage({
+export default function HackathonDetailsPage({
   params,
 }: {
   params: { id: string };
 }) {
-  const hackathon = await getHackathon(params.id);
-  if (!hackathon) {
-    notFound();
+  const router = useRouter();
+  const [hackathon, setHackathon] = useState<any>(null);
+  const [participants, setParticipants] = useState<any>({ participants: [] });
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const hackathonData = await getHackathon(params.id);
+      if (!hackathonData) {
+        notFound();
+      }
+      const participantsData = await getHackathonParticipants(params.id);
+      
+      setHackathon(hackathonData);
+      setParticipants(participantsData);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [params.id]);
+
+  // Обработчик для обновления данных при возврате через стрелки браузера
+  useEffect(() => {
+    const handleRouteChange = () => {
+      fetchData();
+    };
+
+    window.addEventListener('popstate', handleRouteChange);
+    return () => {
+      window.removeEventListener('popstate', handleRouteChange);
+    };
+  }, []);
+
+  if (loading || !hackathon) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
   }
 
-  const participants = await getHackathonParticipants(params.id);
+  const isUpcoming = new Date(hackathon.startDate) > new Date();
+  const isActive = new Date(hackathon.startDate) <= new Date() && new Date(hackathon.endDate) >= new Date();
+  const isCompleted = new Date(hackathon.endDate) < new Date();
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
@@ -139,7 +187,6 @@ export default async function HackathonDetailsPage({
       <Card className="md:col-span-2">
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Задачи хакатона - показываем всегда */}
             <Link href={`/admin/hackathons/${params.id}/tasks`} className="block">
               <Button
                 variant="outline"
@@ -153,7 +200,6 @@ export default async function HackathonDetailsPage({
               </Button>
             </Link>
 
-            {/* Участники хакатона - показываем всегда */}
             <Link href={`/admin/hackathons/${params.id}/participants`} className="block">
               <Button
                 variant="outline"
@@ -167,24 +213,24 @@ export default async function HackathonDetailsPage({
               </Button>
             </Link>
 
-            {/* Заявки хакатона - только для закрытых предстоящих хакатонов */}
-            {!hackathon.isOpen && new Date() < new Date(hackathon.startDate) && (
+            {/* Кнопка "Заявки на участие" только для закрытого и предстоящего хакатона */}
+            {!hackathon.isOpen && isUpcoming && (
               <Link href={`/admin/hackathons/${params.id}/participation-requests`} className="block">
                 <Button
                   variant="outline"
                   className="w-full h-24 text-lg justify-between group hover:border-[#4E7AFF] hover:text-[#4E7AFF]"
                 >
                   <div className="flex items-center gap-3">
-                    <CalendarHeart className="w-6 h-6" />
-                    <span>Заявки хакатона</span>
+                    <FileText className="w-6 h-6" />
+                    <span>Заявки на участие</span>
                   </div>
                   <ChevronRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
                 </Button>
               </Link>
             )}
 
-            {/* Рейтинг хакатона - для начатых и завершенных хакатонов */}
-            {new Date() >= new Date(hackathon.startDate) && (
+            {/* Кнопка "Рейтинг" только для активного или завершенного хакатона */}
+            {(isActive || isCompleted) && (
               <Link href={`/admin/hackathons/${params.id}/rating`} className="block">
                 <Button
                   variant="outline"
@@ -192,23 +238,23 @@ export default async function HackathonDetailsPage({
                 >
                   <div className="flex items-center gap-3">
                     <Trophy className="w-6 h-6" />
-                    <span>Рейтинг хакатона</span>
+                    <span>Рейтинг</span>
                   </div>
                   <ChevronRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
                 </Button>
               </Link>
             )}
 
-            {/* Статистика хакатона - только для завершенных хакатонов */}
-            {new Date() > new Date(hackathon.endDate) && (
+            {/* Кнопка "Статистика" только для завершенного хакатона */}
+            {isCompleted && (
               <Link href={`/admin/hackathons/${params.id}/statistics`} className="block">
                 <Button
                   variant="outline"
                   className="w-full h-24 text-lg justify-between group hover:border-[#4E7AFF] hover:text-[#4E7AFF]"
                 >
                   <div className="flex items-center gap-3">
-                    <CalendarDaysIcon className="w-6 h-6" />
-                    <span>Статистика хакатона</span>
+                    <BarChart className="w-6 h-6" />
+                    <span>Статистика</span>
                   </div>
                   <ChevronRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
                 </Button>

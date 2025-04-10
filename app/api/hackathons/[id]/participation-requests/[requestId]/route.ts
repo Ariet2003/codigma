@@ -89,6 +89,35 @@ export async function PATCH(
         ]);
       }
     }
+    // Если заявка отклонена, удаляем пользователя из участников хакатона
+    else if (status === "REJECTED") {
+      const existingParticipant = await prisma.hackathonParticipant.findFirst({
+        where: {
+          hackathonId: hackathonId,
+          userId: participationRequest.userId,
+        },
+      });
+
+      if (existingParticipant) {
+        await prisma.$transaction([
+          // Удаляем запись об участии
+          prisma.hackathonParticipant.delete({
+            where: {
+              id: existingParticipant.id
+            },
+          }),
+          // Уменьшаем счетчик участия в хакатонах
+          prisma.user.update({
+            where: { id: participationRequest.userId },
+            data: {
+              hackathonsParticipated: {
+                decrement: 1
+              }
+            }
+          })
+        ]);
+      }
+    }
     
     return NextResponse.json({ request: updatedRequest });
   } catch (error) {

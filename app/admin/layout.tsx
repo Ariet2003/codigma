@@ -15,18 +15,7 @@ export default function AdminLayout({
   if (isSignInPage) {
     return (
       <>
-        <Toaster 
-          richColors 
-          position="top-center"
-          toastOptions={{
-            style: {
-              background: "hsl(var(--card))",
-              color: "hsl(var(--foreground))",
-              border: "1px solid hsl(var(--border))",
-            },
-            className: "text-sm font-medium",
-          }}
-        />
+        <Toaster richColors position="top-center" />
         <div className="min-h-screen">
           {children}
         </div>
@@ -36,18 +25,7 @@ export default function AdminLayout({
 
   return (
     <>
-      <Toaster 
-        richColors 
-        position="top-center"
-        toastOptions={{
-          style: {
-            background: "hsl(var(--card))",
-            color: "hsl(var(--foreground))",
-            border: "1px solid hsl(var(--border))",
-          },
-          className: "text-sm font-medium",
-        }}
-      />
+      <Toaster richColors position="top-center" />
       <div className="flex h-screen bg-background">
         <Sidebar />
         <main className="flex-1 overflow-y-auto">

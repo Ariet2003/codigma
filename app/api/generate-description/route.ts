@@ -1,13 +1,16 @@
 import { OpenAI } from 'openai';
 import { NextResponse } from 'next/server';
+import { getOpenAIKey } from '@/lib/settings';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const getOpenAIInstance = async () => {
+  const apiKey = await getOpenAIKey();
+  return new OpenAI({ apiKey });
+};
 
 export async function POST(req: Request) {
   try {
     const { content } = await req.json();
+    const openai = await getOpenAIInstance();
 
     const prompt = `Ты эксперт созданием описание хакатона. Прочитав этот текст перепиши описание красивыми словами, с смайликами и т.д. в формате маркдоун. Вот описание который я хочу улучшить:
 

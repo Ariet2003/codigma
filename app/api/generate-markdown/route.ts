@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { getOpenAIKey } from '@/lib/settings';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const getOpenAIInstance = async () => {
+  const apiKey = await getOpenAIKey();
+  return new OpenAI({ apiKey });
+};
 
 const systemPrompt = `Ты помощник по программированию. Твоя задача - создавать условия задач в стиле LeetCode. 
 Формат вывода должен быть строго следующим:
@@ -26,6 +28,7 @@ const systemPrompt = `Ты помощник по программировани�
 export async function POST(request: Request) {
   try {
     const { prompt } = await request.json();
+    const openai = await getOpenAIInstance();
 
     if (!prompt) {
       return NextResponse.json(

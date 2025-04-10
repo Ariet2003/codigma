@@ -1,13 +1,33 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { getOpenAIKey } from '@/lib/settings';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+const getOpenAIInstance = async () => {
+  const apiKey = await getOpenAIKey();
+  return new OpenAI({ apiKey });
+};
 
 export async function POST(request: Request) {
   try {
-    const { task_name, metadata, solution_code, test_count } = await request.json();
+    const data = await request.json();
+    const openai = await getOpenAIInstance();
+
+    const { task_name, metadata, solution_code, test_count } = data;
+
+    // Проверяем обязательные поля
+    if (!task_name || !metadata || !solution_code || !test_count) {
+      return NextResponse.json(
+        { error: 'Отсутствуют обязательные параметры' },
+        { status: 400 }
+      );
+    }
+
+    console.log("Получены данные:", {
+      task_name,
+      metadata,
+      solution_code_length: solution_code.length,
+      test_count
+    });
 
     const prompt = `
       Ты являешься экспертом в генерации тестовых случаев для задач по программированию.

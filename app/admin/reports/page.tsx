@@ -2794,32 +2794,21 @@ export default function ReportsPage() {
   );
 
   const renderRequestsReport = () => (
-    <>
-      <div className="flex items-center justify-between mb-8">
-        <ReportHeader 
-          icon={FileQuestion} 
-          title="Отчет по заявкам" 
-          onBack={() => setActiveReport(null)} 
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <ReportHeader
+          icon={Send}
+          title="Отчет по заявкам"
+          onBack={() => setActiveReport(null)}
         />
-        <div className="flex items-center gap-3">
-          <Button
-            onClick={() => setActiveReport(null)}
-            variant="outline"
-            className="flex items-center gap-2 transition-all duration-200 hover:bg-[#4E7AFF]/5 hover:text-[#4E7AFF] hover:border-[#4E7AFF]"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Назад
-          </Button>
-          <Button
-            onClick={() => exportRequestsToExcel(requestReport)}
-            className="flex items-center gap-2 bg-[#4E7AFF] text-white hover:bg-[#4E7AFF]/90 transition-all duration-200"
-          >
-            <Download className="h-4 w-4" />
-            Экспорт в Excel
-          </Button>
-        </div>
+        <Button
+          onClick={() => requestReport && exportRequestsToExcel(requestReport)}
+          className="ml-auto bg-blue-600 hover:bg-blue-700 text-white"
+        >
+          <Download className="w-4 h-4 mr-2" />
+          Экспорт в Excel
+        </Button>
       </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <StatsCard title="Всего заявок" icon={FileQuestion}>
           <div className="text-2xl font-bold">{requestReport.totalRequests}</div>
@@ -2968,7 +2957,7 @@ export default function ReportsPage() {
           />
         </CardContent>
       </DataTable>
-    </>
+    </div>
   );
 
   return (

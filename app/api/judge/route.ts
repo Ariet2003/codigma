@@ -1,39 +1,34 @@
 import { NextResponse } from "next/server";
+import { getRapidAPIKey } from "@/lib/settings";
 
 async function runJudge0Testcases(data: any) {
+  const rapidApiKey = await getRapidAPIKey();
   const testcases = data.testcases || [];
-  const tests_count = testcases.length;
-  let correct_tests_count = 0;
-  const incorrect_test_indexes: number[] = [];
   const tokens: string[] = [];
+  const incorrect_test_indexes: number[] = [];
   let first_stderr: string | null = null;
+  let correct_tests_count = 0;
+  const total_tests = testcases.length;
 
-  const language_id = data.language_id;
-  const source_code = data.source_code;
-  // Кодируем исходный код
-  const encoded_source_code = Buffer.from(source_code).toString('base64');
-
-  const url = "https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=true&wait=false";
+  const url = 'https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=false&wait=false';
   const headers = {
-    "content-type": "application/json",
-    "x-rapidapi-host": "judge029.p.rapidapi.com",
-    "x-rapidapi-key": process.env.RAPIDAPI_KEY || ""
+    'content-type': 'application/json',
+    'X-RapidAPI-Key': rapidApiKey,
+    'X-RapidAPI-Host': 'judge0-ce.p.rapidapi.com'
   };
 
   for (let idx = 0; idx < testcases.length; idx++) {
-
     const testcase = testcases[idx];
-    const stdin = testcase.stdin || "";
-    const expected_output = String(testcase.expected_output || "");
-
-    const encoded_stdin = Buffer.from(stdin).toString('base64');
-    const encoded_expected_output = Buffer.from(expected_output).toString('base64');
+    const { stdin, expected_output } = testcase;
 
     const payload = {
-      language_id,
-      source_code: encoded_source_code,
-      stdin: encoded_stdin,
-      expected_output: encoded_expected_output
+      language_id: data.language_id,
+      source_code: data.source_code,
+      stdin: stdin,
+      expected_output: expected_output,
+      cpu_time_limit: 5,
+      memory_limit: 128000,
+      enable_network: false
     };
 
     try {
@@ -48,15 +43,10 @@ async function runJudge0Testcases(data: any) {
         body: JSON.stringify(payload)
       });
 
-      console.log(`Ответ от Judge0 для кейса ${idx + 1}:`, {
-        response
-      });
-
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`Ошибка Judge0 для кейса ${idx + 1}:`, errorText);
         
-        // Улучшенная обработка ошибок
         let errorMessage = "Ошибка Judge0";
         try {
           const errorJson = JSON.parse(errorText);
@@ -79,74 +69,95 @@ async function runJudge0Testcases(data: any) {
         continue;
       }
 
-      const responseData = await response.json();
-      console.log(`Данные от Judge0 для кейса ${idx + 1}:`, responseData);
-      const token = responseData.token;
+      const submissionData = await response.json();
+      const token = submissionData.token;
 
       if (!token) {
         tokens.push("Ошибка");
         incorrect_test_indexes.push(idx);
         if (first_stderr === null) {
-          first_stderr = "Правильно";
+          first_stderr = "Не удалось получить токен";
         }
         continue;
       }
 
-      tokens.push(token);
-
-      // Ждем результата
-      let result;
+      // Ждем результата выполнения
       let attempts = 0;
       const maxAttempts = 10;
+      let finalResult = null;
 
       while (attempts < maxAttempts) {
-        const result_url = `https://judge0-ce.p.rapidapi.com/submissions/${token}?base64_encoded=true`;
-        const result_response = await fetch(result_url, { headers });
-
-        result = await result_response.json();
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        console.log(`Проверка результата для кейса ${idx + 1} (попытка ${attempts + 1}):`, {
-          status_id: result.status?.id,
-          stderr: result.stderr ? Buffer.from(result.stderr, 'base64').toString() : null
-        });
-
-        if (result.status.id !== 1 && result.status.id !== 2) {
+        const checkUrl = `https://judge0-ce.p.rapidapi.com/submissions/${token}?base64_encoded=false`;
+        const checkResponse = await fetch(checkUrl, { headers });
+        
+        if (!checkResponse.ok) {
+          console.error(`Ошибка при проверке результата для кейса ${idx + 1}`);
           break;
         }
 
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        const result = await checkResponse.json();
+        console.log(`Проверка результата для кейса ${idx + 1} (попытка ${attempts + 1}):`, {
+          status_id: result.status?.id,
+          stderr: result.stderr
+        });
+
+        // Status ID: 1 - In Queue, 2 - Processing
+        if (result.status?.id !== 1 && result.status?.id !== 2) {
+          finalResult = result;
+          break;
+        }
+
         attempts++;
       }
 
-      if (first_stderr === null && result.stderr) {
-        first_stderr = Buffer.from(result.stderr, 'base64').toString();
+      if (!finalResult) {
+        tokens.push("Таймаут");
+        incorrect_test_indexes.push(idx);
+        if (first_stderr === null) {
+          first_stderr = "Превышено время ожидания результата";
+        }
+        continue;
       }
 
-      if (result.status.id === 3) {
+      // Status ID: 3 - Accepted, 4 - Wrong Answer, 5 - Time Limit Exceeded, 6 - Compilation Error
+      if (finalResult.status?.id === 3) {
+        tokens.push("OK");
         correct_tests_count++;
       } else {
+        tokens.push(finalResult.status?.description || "Ошибка");
         incorrect_test_indexes.push(idx);
+        if (first_stderr === null) {
+          first_stderr = finalResult.compile_output || finalResult.stderr || "Неизвестная ошибка";
+        }
       }
 
     } catch (error) {
-      console.error("Error:", error);
+      console.error(`Ошибка при выполнении кейса ${idx + 1}:`, error);
       tokens.push("Ошибка");
       incorrect_test_indexes.push(idx);
       if (first_stderr === null) {
-        first_stderr = "Ошибка выполнения";
+        first_stderr = error instanceof Error ? error.message : "Неизвестная ошибка";
       }
     }
   }
 
-  const status = correct_tests_count === tests_count ? 1 : 0;
+  // Формируем сообщение о результатах
+  let status_message = "";
+  if (correct_tests_count === total_tests) {
+    status_message = "Правильно";
+  } else {
+    status_message = `Пройдено тестов: ${correct_tests_count} из ${total_tests}`;
+  }
 
   return {
-    tests_count,
-    status,
-    stderr: first_stderr || "Правильно",
     tokens,
+    incorrect_test_indexes,
+    first_stderr: first_stderr || status_message,
+    tests_count: total_tests,
     correct_tests_count,
-    incorrect_test_indexes
+    status: correct_tests_count === total_tests ? 1 : 0
   };
 }
 
@@ -156,16 +167,8 @@ export async function POST(request: Request) {
     console.log("Получены данные:", {
       language_id: data.language_id,
       source_code_length: data.source_code.length,
-      testcases_count: data.testcases.length,
-      rapidapi_key_length: process.env.RAPIDAPI_KEY?.length || 0
+      testcases_count: data.testcases.length
     });
-
-    if (!process.env.RAPIDAPI_KEY) {
-      return NextResponse.json(
-        { error: "RAPIDAPI_KEY не настроен" },
-        { status: 500 }
-      );
-    }
 
     const result = await runJudge0Testcases(data);
     return NextResponse.json(result);
