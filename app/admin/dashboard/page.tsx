@@ -18,35 +18,139 @@ import {
   Cell
 } from "recharts";
 
-const areaData = [
-  { name: "Янв", value: 400 },
-  { name: "Фев", value: 300 },
-  { name: "Мар", value: 600 },
-  { name: "Апр", value: 800 },
-  { name: "Май", value: 1500 },
-  { name: "Июн", value: 900 },
-];
-
-const barData = [
-  { name: "Пн", value: 20 },
-  { name: "Вт", value: 35 },
-  { name: "Ср", value: 45 },
-  { name: "Чт", value: 30 },
-  { name: "Пт", value: 55 },
-  { name: "Сб", value: 15 },
-  { name: "Вс", value: 10 },
-];
-
-const pieData = [
-  { name: "Активные", value: 60 },
-  { name: "Завершенные", value: 30 },
-  { name: "Отмененные", value: 10 },
-];
-
 const COLORS = ["#3b82f6", "#22c55e", "#ef4444"];
+
+// Кастомный тултип для графика роста пользователей
+const CustomTooltipGrowth = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-background border rounded-lg shadow-lg p-3">
+        <p className="font-medium">{label}</p>
+        <p className="text-sm">
+          Новых пользователей: <span className="font-medium">{payload[0].value}</span>
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
+// Кастомный тултип для графика активности
+const CustomTooltipActivity = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    const details = payload[0].payload.details;
+    return (
+      <div className="bg-background border rounded-lg shadow-lg p-3">
+        <p className="font-medium">{label}</p>
+        <div className="space-y-1 mt-1">
+          <p className="text-sm">
+            Решения задач: <span className="font-medium">{details.submissions}</span>
+          </p>
+          <p className="text-sm">
+            Заявки на участие: <span className="font-medium">{details.requests}</span>
+          </p>
+          <p className="text-sm">
+            Новые участники: <span className="font-medium">{details.participants}</span>
+          </p>
+          <p className="text-sm">
+            Новые пользователи: <span className="font-medium">{details.newUsers}</span>
+          </p>
+          <p className="text-sm font-medium mt-2 pt-2 border-t">
+            Всего активностей: {payload[0].value}
+          </p>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
+// Кастомный тултип для круговой диаграммы хакатонов
+const CustomTooltipHackathon = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-background border rounded-lg shadow-lg p-3">
+        <p className="text-sm">
+          {payload[0].name}: <span className="font-medium">{payload[0].value} шт.</span>
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
+// Кастомный тултип для круговой диаграммы заявок
+const CustomTooltipRequest = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-background border rounded-lg shadow-lg p-3">
+        <p className="text-sm">
+          {payload[0].name}: <span className="font-medium">{payload[0].value} заявок</span>
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
+interface DashboardData {
+  stats: {
+    activeHackathons: number;
+    totalUsers: number;
+    newUsers: number;
+    submissionRate: number;
+  };
+  userGrowth: Array<{
+    name: string;
+    value: number;
+  }>;
+  weeklyActivity: Array<{
+    name: string;
+    value: number;
+    details: {
+      submissions: number;
+      requests: number;
+      participants: number;
+      newUsers: number;
+    };
+  }>;
+  hackathonStatuses: Array<{
+    name: string;
+    value: number;
+  }>;
+  requestStatuses: Array<{
+    name: string;
+    value: number;
+  }>;
+}
 
 export default function DashboardPage() {
   const [currentTime, setCurrentTime] = useState<string>("");
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch("/api/dashboard");
+      if (!response.ok) throw new Error("Ошибка при загрузке данных");
+      const dashboardData = await response.json();
+      setData(dashboardData);
+    } catch (error) {
+      console.error("Ошибка при загрузке данных:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+    
+    // Обновляем данные каждые 5 минут
+    const dataInterval = setInterval(fetchData, 5 * 60 * 1000);
+    
+    return () => clearInterval(dataInterval);
+  }, []);
 
   useEffect(() => {
     setCurrentTime(new Date().toLocaleString("ru-RU"));
@@ -58,6 +162,14 @@ export default function DashboardPage() {
 
     return () => clearInterval(timer);
   }, []);
+
+  if (loading || !data) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 p-6">
@@ -80,9 +192,9 @@ export default function DashboardPage() {
             <Trophy className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-500">3</div>
+            <div className="text-2xl font-bold text-blue-500">{data.stats.activeHackathons}</div>
             <p className="text-xs text-muted-foreground">
-              +2 за последний месяц
+              Сейчас проходят
             </p>
           </CardContent>
         </Card>
@@ -95,9 +207,9 @@ export default function DashboardPage() {
             <Users className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-500">2,853</div>
+            <div className="text-2xl font-bold text-green-500">{data.stats.totalUsers}</div>
             <p className="text-xs text-muted-foreground">
-              +180 новых пользователей
+              +{data.stats.newUsers} за последний месяц
             </p>
           </CardContent>
         </Card>
@@ -110,9 +222,11 @@ export default function DashboardPage() {
             <Activity className="h-4 w-4 text-violet-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-violet-500">+12%</div>
+            <div className="text-2xl font-bold text-violet-500">
+              {data.weeklyActivity.reduce((sum, day) => sum + day.value, 0)} действий
+            </div>
             <p className="text-xs text-muted-foreground">
-              По сравнению с прошлой неделей
+              За последние 7 дней
             </p>
           </CardContent>
         </Card>
@@ -120,21 +234,21 @@ export default function DashboardPage() {
         <Card className="hover-lift hover-glow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Средний рейтинг
+              Успешные решения
             </CardTitle>
             <Star className="h-4 w-4 text-yellow-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-500">4.8</div>
+            <div className="text-2xl font-bold text-yellow-500">{data.stats.submissionRate}%</div>
             <p className="text-xs text-muted-foreground">
-              На основе 1,250 оценок
+              Процент успешных решений
             </p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4 hover-lift">
+      <div className="grid gap-4 grid-cols-2">
+        <Card className="hover-lift">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-blue-500" />
@@ -144,7 +258,7 @@ export default function DashboardPage() {
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={areaData}>
+                <AreaChart data={data.userGrowth}>
                   <defs>
                     <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
@@ -154,7 +268,7 @@ export default function DashboardPage() {
                   <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
                   <XAxis dataKey="name" />
                   <YAxis />
-                  <Tooltip />
+                  <Tooltip content={<CustomTooltipGrowth />} />
                   <Area
                     type="monotone"
                     dataKey="value"
@@ -168,7 +282,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="col-span-3 hover-lift">
+        <Card className="hover-lift">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <UserPlus className="h-5 w-5 text-green-500" />
@@ -178,11 +292,11 @@ export default function DashboardPage() {
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={barData}>
+                <BarChart data={data.weeklyActivity}>
                   <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
                   <XAxis dataKey="name" />
                   <YAxis />
-                  <Tooltip />
+                  <Tooltip content={<CustomTooltipActivity />} />
                   <Bar dataKey="value" fill="#22c55e" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -190,7 +304,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="col-span-3 hover-lift">
+        <Card className="hover-lift">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Trophy className="h-5 w-5 text-blue-500" />
@@ -202,34 +316,68 @@ export default function DashboardPage() {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={pieData}
+                    data={data.hackathonStatuses}
                     cx="50%"
                     cy="50%"
+                    labelLine={false}
+                    label={({ name, value, percent }) => (
+                      `${name}\n${(percent * 100).toFixed(0)}%`
+                    )}
+                    outerRadius={100}
                     innerRadius={60}
-                    outerRadius={80}
                     paddingAngle={5}
                     dataKey="value"
                   >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    {data.hackathonStatuses.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={COLORS[index % COLORS.length]}
+                        stroke="transparent"
+                      />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip content={<CustomTooltipHackathon />} />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="mt-4 flex justify-center gap-4">
-                {pieData.map((entry, index) => (
-                  <div key={entry.name} className="flex items-center gap-2">
-                    <div
-                      className="h-3 w-3 rounded-full"
-                      style={{ backgroundColor: COLORS[index] }}
-                    />
-                    <span className="text-sm text-muted-foreground">
-                      {entry.name}
-                    </span>
-                  </div>
-                ))}
-              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover-lift">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-violet-500" />
+              Статус заявок
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={data.requestStatuses}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, value, percent }) => (
+                      `${name}\n${(percent * 100).toFixed(0)}%`
+                    )}
+                    outerRadius={100}
+                    innerRadius={60}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {data.requestStatuses.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={COLORS[index % COLORS.length]}
+                        stroke="transparent"
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<CustomTooltipRequest />} />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>

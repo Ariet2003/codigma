@@ -176,7 +176,7 @@ export default function RatingPage({
               <div>
                 <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Общий балл</p>
                 <h3 className="text-2xl font-bold mt-1">
-                  {participants.reduce((sum, p) => sum + p.totalScore, 0)}
+                  {participants.reduce((sum, p) => sum + p.totalScore, 0).toFixed(1)}
                 </h3>
               </div>
               <div className="h-10 w-10 rounded-full bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center">
