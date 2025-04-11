@@ -6,6 +6,21 @@ export function middleware(request: NextRequest) {
   const isAuthenticated = request.cookies.has("admin-token");
   const { pathname } = request.nextUrl;
 
+  // Пропускаем запросы к API аутентификации
+  if (pathname.startsWith("/api/admin/auth")) {
+    return NextResponse.next();
+  }
+
+  // Защита API эндпоинтов админ-панели
+  if (pathname.startsWith("/api/dashboard") || pathname.startsWith("/api/admin")) {
+    if (!isAuthenticated) {
+      return NextResponse.json(
+        { error: "Не авторизован" },
+        { status: 401 }
+      );
+    }
+  }
+
   // Если пользователь авторизован и пытается зайти на страницу входа или главную
   if (isAuthenticated && (pathname === "/admin/signin" || pathname === "/")) {
     return NextResponse.redirect(new URL("/admin/dashboard", request.url));
@@ -22,7 +37,8 @@ export function middleware(request: NextRequest) {
 // Указываем, для каких путей должен срабатывать middleware
 export const config = {
   matcher: [
-    "/",
     "/admin/:path*",
-  ],
+    "/api/dashboard/:path*",
+    "/api/admin/:path*"
+  ]
 }; 
