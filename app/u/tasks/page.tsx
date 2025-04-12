@@ -370,7 +370,7 @@ export default function TasksPage() {
                           "hover:shadow-md hover:-translate-y-[1px]",
                           "cursor-pointer"
                         )}
-                        onClick={() => router.push(`/tasks/${task.id}`)}
+                        onClick={() => router.push(`/u/tasks/${task.id}`)}
                       >
                         <TableCell className="text-center">{getStatusBadge(task.solved)}</TableCell>
                         <TableCell className="font-medium">
