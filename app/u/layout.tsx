@@ -14,12 +14,12 @@ export default function UserLayout({
   return (
     <>
       <Toaster richColors position="top-center" />
-      <div className="min-h-screen bg-background">
-        <UserHeader />
-        <main className="container mx-auto px-4 py-8">
+      <UserHeader />
+      <main className="min-h-screen">
+        <div className="container mx-auto px-8">
           {children}
-        </main>
-      </div>
+        </div>
+      </main>
     </>
   );
 } 

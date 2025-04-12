@@ -60,6 +60,7 @@ model User {
   totalScore             Float     @default(0) // Общий рейтинг пользователя
   tasksCompleted         Int       @default(0) // Общее количество решенных задач
   hackathonsParticipated Int       @default(0) // Количество хакатонов, в которых участвовал
+  taskSubmissions        UserTaskSubmission[] // Добавляем связь с новой таблицей
 }
 
 model VerificationToken {
@@ -90,6 +91,7 @@ model Task {
   testCases     TestCase[]
   codeTemplates CodeTemplate[]
   submissions   TaskSubmission[]
+  userSubmissions UserTaskSubmission[] // Добавляем связь с новой таблицей
 }
 
 model TestCase {
@@ -213,4 +215,25 @@ model Settings {
   updatedAt DateTime @updatedAt
 
   @@map("settings")
+}
+
+// Решения задач пользователями (вне хакатона)
+model UserTaskSubmission {
+  id            String   @id @default(cuid())
+  userId        String
+  taskId        String
+  code          String   @db.Text
+  language      String
+  memory        BigInt?
+  executionTime BigInt?
+  testsPassed   Int      @default(0)
+  testsTotal    Int      @default(0)
+  status        Status   @default(PENDING)
+  createdAt     DateTime @default(now()) @db.Timestamp(6)
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task          Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([taskId])
 }

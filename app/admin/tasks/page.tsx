@@ -48,7 +48,7 @@ type Task = {
   outputParams: any;
   test_count: number;
   created_at: string;
-  updated_at: string;
+  updatedAt: string;
 };
 
 export default function TasksPage() {
@@ -57,7 +57,7 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [difficulty, setDifficulty] = useState("");
-  const [sortBy, setSortBy] = useState("updated_at");
+  const [sortBy, setSortBy] = useState("updatedAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -143,6 +143,18 @@ export default function TasksPage() {
     }
   };
 
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "—";
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return "—";
+      return format(date, "dd MMM yyyy", { locale: ru });
+    } catch (error) {
+      console.error("Error formatting date:", error);
+      return "—";
+    }
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -190,7 +202,7 @@ export default function TasksPage() {
               <SelectValue placeholder="Сортировать по" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="updated_at">По дате обновления</SelectItem>
+              <SelectItem value="updatedAt">По дате обновления</SelectItem>
               <SelectItem value="created_at">По дате создания</SelectItem>
               <SelectItem value="test_count">По количеству тестов</SelectItem>
               <SelectItem value="title">По названию</SelectItem>
@@ -248,10 +260,10 @@ export default function TasksPage() {
                   </TableCell>
                   <TableCell className="text-center">{task.test_count}</TableCell>
                   <TableCell>
-                    {format(new Date(task.created_at), "dd MMM yyyy", { locale: ru })}
+                    {formatDate(task.created_at)}
                   </TableCell>
                   <TableCell>
-                    {format(new Date(task.updated_at), "dd MMM yyyy", { locale: ru })}
+                    {formatDate(task.updatedAt)}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">

@@ -1,96 +1,152 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export async function GET(request: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "10");
+    const limit = parseInt(searchParams.get("limit") || "50");
     const search = searchParams.get("search") || "";
-    const difficulty = searchParams.get("difficulty") || undefined;
-    const sortBy = searchParams.get("sortBy") || "updatedAt";
-    const sortOrder = (searchParams.get("sortOrder") || "desc") as "asc" | "desc";
+    const difficulty = searchParams.get("difficulty") || "all";
+    const sortBy = searchParams.get("sortBy") || "title";
+    const order = searchParams.get("order") || "asc";
+    const status = searchParams.get("status") || "all";
 
-    const skip = (page - 1) * limit;
-
-    // Построение условия where для поиска
+    // Формируем условия фильтрации
     const where = {
+      ...(difficulty !== "all" && {
+        difficulty: difficulty,
+      }),
       ...(search && {
         OR: [
           { title: { contains: search, mode: "insensitive" } },
           { description: { contains: search, mode: "insensitive" } },
         ],
       }),
-      ...(difficulty && { difficulty }),
+      ...(status === "solved" && {
+        submissions: {
+          some: {
+            participant: {
+              userId: session.user.id
+            },
+            status: "ACCEPTED"
+          }
+        }
+      }),
+      ...(status === "unsolved" && {
+        NOT: {
+          submissions: {
+            some: {
+              participant: {
+                userId: session.user.id
+              },
+              status: "ACCEPTED"
+            }
+          }
+        }
+      })
     };
 
+    // Получаем общее количество задач
+    const total = await prisma.task.count({ where });
+
+    // Определяем параметры сортировки
     let orderBy: any = {};
-
-    // Настройка сортировки
-    if (sortBy === "test_count") {
-      orderBy = {
-        testCases: {
-          _count: sortOrder
-        }
-      };
-    } else {
-      // Преобразование имен полей из фронтенда в имена полей базы данных
-      const fieldMapping: { [key: string]: string } = {
-        "created_at": "createdAt",
-        "updated_at": "updatedAt",
-        "title": "title",
-        "difficulty": "difficulty"
-      };
-
-      const dbField = fieldMapping[sortBy] || "updatedAt";
-      orderBy = { [dbField]: sortOrder };
+    
+    switch (sortBy) {
+      case 'attempts':
+        orderBy = {
+          submissions: {
+            _count: true
+          }
+        };
+        break;
+      case 'acceptedCount':
+        orderBy = {
+          submissions: {
+            where: {
+              status: "ACCEPTED"
+            },
+            _count: true
+          }
+        };
+        break;
+      case 'status':
+        orderBy = {
+          submissions: {
+            where: {
+              participant: {
+                userId: session.user.id
+              },
+              status: "ACCEPTED"
+            },
+            _count: true
+          }
+        };
+        break;
+      default:
+        orderBy = {
+          [sortBy]: order
+        };
     }
 
-    // Получение задач с пагинацией и сортировкой
-    const [tasks, total] = await Promise.all([
-      prisma.task.findMany({
-        where,
-        select: {
-          id: true,
-          title: true,
-          difficulty: true,
-          description: true,
-          createdAt: true,
-          updatedAt: true,
-          testCases: {
-            select: {
-              id: true,
-            },
-          },
-        },
-        orderBy,
-        skip,
-        take: limit,
-      }),
-      prisma.task.count({ where }),
-    ]);
+    // Получаем задачи с пагинацией и сортировкой
+    const tasks = await prisma.task.findMany({
+      where,
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: sortBy === 'title' || sortBy === 'difficulty' 
+        ? { [sortBy]: order }
+        : [orderBy, { title: 'asc' }],
+      select: {
+        id: true,
+        title: true,
+        difficulty: true,
+        description: true,
+        functionName: true,
+        inputParams: true,
+        outputParams: true,
+        createdAt: true,
+        updatedAt: true,
+        testCases: {
+          select: {
+            id: true
+          }
+        }
+      }
+    });
 
-    // Преобразование данных для ответа
+    // Форматируем данные для фронтенда
     const formattedTasks = tasks.map(task => ({
-      ...task,
-      created_at: task.createdAt,
-      updated_at: task.updatedAt,
+      id: task.id,
+      title: task.title,
+      difficulty: task.difficulty,
+      description: task.description,
+      functionName: task.functionName,
+      inputParams: task.inputParams,
+      outputParams: task.outputParams,
       test_count: task.testCases.length,
-      createdAt: undefined,
-      updatedAt: undefined,
-      testCases: undefined,
+      created_at: task.createdAt.toISOString(),
+      updatedAt: task.updatedAt.toISOString()
     }));
 
     return NextResponse.json({
       tasks: formattedTasks,
-      total,
-      pages: Math.ceil(total / limit),
+      total: total,
+      pages: Math.ceil(total / limit)
     });
   } catch (error) {
-    console.error("Ошибка при получении списка задач:", error);
+    console.error("Error fetching tasks:", error);
     return NextResponse.json(
-      { error: "Произошла ошибка при получении списка задач" },
+      { error: "Failed to fetch tasks" },
       { status: 500 }
     );
   }

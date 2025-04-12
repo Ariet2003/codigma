@@ -2,7 +2,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { Appbar } from './components/Appbar';
 import { Footer } from './components/Footer';
-import { ThemeProvider } from '../components/theme-provider';
+import { ThemeProvider } from '@/components/theme-provider';
 import { SessionProvider } from './providers/session-provider';
 import { Toaster } from "@/components/ui/toaster";
 import { Inter } from "next/font/google";

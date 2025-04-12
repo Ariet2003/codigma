@@ -46,7 +46,7 @@ type Task = {
   description: string;
   test_count: number;
   created_at: string;
-  updated_at: string;
+  updatedAt: string;
 };
 
 export default function TasksPage() {
@@ -54,7 +54,7 @@ export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [difficulty, setDifficulty] = useState<string>("");
-  const [sortBy, setSortBy] = useState<string>("updated_at");
+  const [sortBy, setSortBy] = useState<string>("updatedAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -65,7 +65,7 @@ export default function TasksPage() {
   const fetchTasks = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(\`/api/tasks?page=\${currentPage}&limit=10&search=\${searchQuery}&difficulty=\${difficulty}&sortBy=\${sortBy}&sortOrder=\${sortOrder}\`);
+      const response = await fetch(`/api/tasks?page=${currentPage}&limit=10&search=${searchQuery}&difficulty=${difficulty}&sortBy=${sortBy}&sortOrder=${sortOrder}`);
       const data = await response.json();
       setTasks(data.tasks);
       setTotalPages(Math.ceil(data.total / 10));
@@ -201,7 +201,7 @@ export default function TasksPage() {
               </TableHead>
               <TableHead className="font-medium">
                 <button
-                  onClick={() => handleSort("updated_at")}
+                  onClick={() => handleSort("updatedAt")}
                   className="flex items-center gap-1 hover:text-[#4E7AFF]"
                 >
                   Обновлено
@@ -235,10 +235,10 @@ export default function TasksPage() {
                   </TableCell>
                   <TableCell>{task.test_count}</TableCell>
                   <TableCell>
-                    {format(new Date(task.created_at), "d MMMM yyyy", { locale: ru })}
+                    {format(new Date(task.createdAt), "d MMMM yyyy", { locale: ru })}
                   </TableCell>
                   <TableCell>
-                    {format(new Date(task.updated_at), "d MMMM yyyy", { locale: ru })}
+                    {format(new Date(task.updatedAt), "d MMMM yyyy", { locale: ru })}
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
