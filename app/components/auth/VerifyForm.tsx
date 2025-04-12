@@ -93,7 +93,7 @@ export function VerifyForm() {
         router.push("/auth/signin")
       } else {
         localStorage.removeItem(`temp_password_${email}`)
-        router.push("/dashboard")
+        router.push("/u/profile")
       }
     } catch (error: any) {
       toast.error(error.message || "Что-то пошло не так")

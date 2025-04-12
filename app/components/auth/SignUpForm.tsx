@@ -172,7 +172,7 @@ export function SignUpForm() {
         variant="outline"
         type="button"
         disabled={isLoading}
-        onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
+        onClick={() => signIn("google", { callbackUrl: "/u/profile" })}
         className="h-11 rounded-xl border-2 hover:bg-muted/50 font-medium transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-[0_0_0_3px_rgba(78,122,255,0.1)]"
       >
         <svg className="mr-2 h-5 w-5" viewBox="0 0 24 24">
