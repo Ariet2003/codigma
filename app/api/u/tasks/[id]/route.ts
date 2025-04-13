@@ -21,8 +21,7 @@ export async function GET(
             id: true,
             input: true,
             expectedOutput: true,
-          },
-          take: 3, // Берем только первые 3 тесткейса
+          }
         },
         codeTemplates: {
           select: {
