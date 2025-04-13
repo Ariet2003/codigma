@@ -96,6 +96,18 @@ export default function TaskPage() {
     localStorage.setItem(`code_${taskId}_${language}`, code);
   };
 
+  // Функция для получения результатов из LocalStorage
+  const getStoredResults = (taskId: string, language: string) => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem(`results_${taskId}_${language}`);
+  };
+
+  // Функция для сохранения результатов в LocalStorage
+  const storeResults = (taskId: string, language: string, output: string) => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(`results_${taskId}_${language}`, output);
+  };
+
   useEffect(() => {
     const fetchTask = async () => {
       try {
@@ -110,6 +122,12 @@ export default function TaskPage() {
           setCode(storedCode);
         } else {
           setCode(data.codeTemplates.find((t: { language: string }) => t.language === selectedLanguage)?.baseTemplate || '');
+        }
+
+        // Загружаем сохраненные результаты
+        const storedResults = getStoredResults(id as string, selectedLanguage);
+        if (storedResults) {
+          setOutput(storedResults);
         }
       } catch (error) {
         console.error('Error:', error);
@@ -138,6 +156,14 @@ export default function TaskPage() {
       const template = task?.codeTemplates.find(t => t.language === langId);
       setCode(template ? template.baseTemplate : '');
     }
+
+    // Загружаем сохраненные результаты для выбранного языка
+    const storedResults = getStoredResults(id as string, langId);
+    if (storedResults) {
+      setOutput(storedResults);
+    } else {
+      setOutput('');
+    }
   };
 
   const handleRun = async () => {
@@ -159,6 +185,7 @@ export default function TaskPage() {
         const error = await response.json();
         const errorMessage = error.error || 'Произошла ошибка при выполнении кода';
         setOutput(errorMessage);
+        storeResults(id as string, selectedLanguage, errorMessage);
         toast.error(errorMessage, {
           duration: 3000
         });
@@ -180,9 +207,14 @@ export default function TaskPage() {
       }
 
       setOutput(outputText);
+      // Сохраняем результаты в LocalStorage
+      storeResults(id as string, selectedLanguage, outputText);
 
       // Показываем уведомление о результатах
       if (result.correct_tests_count === result.tests_count) {
+        // Обновляем статус решения задачи
+        setTask(prevTask => prevTask ? { ...prevTask, isSolved: true } : prevTask);
+        
         toast.success("Задача решена!", {
           description: `Все тесты пройдены успешно (${result.correct_tests_count} из ${result.tests_count})`,
           duration: 3000
@@ -196,6 +228,7 @@ export default function TaskPage() {
     } catch (error) {
       const errorMessage = 'Произошла ошибка при выполнении кода';
       setOutput(errorMessage);
+      storeResults(id as string, selectedLanguage, errorMessage);
       toast.error(errorMessage, {
         duration: 3000
       });

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { getRapidAPIKey } from "@/lib/settings";
+import { Status } from "@prisma/client";
 
 const judge0_language_ids = {
   cpp: 54,
@@ -19,6 +20,8 @@ async function runJudge0Testcases(data: any) {
   let first_stderr: string | null = null;
   let correct_tests_count = 0;
   const total_tests = testcases.length;
+  let total_memory = 0;
+  let total_time = 0;
 
   const url = 'https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=false&wait=false';
   const headers = {
@@ -84,6 +87,8 @@ async function runJudge0Testcases(data: any) {
         continue;
       }
 
+      console.log(`Тест ${idx + 1}: ${token}`);
+
       // Ждем результата выполнения
       let attempts = 0;
       const maxAttempts = 10;
@@ -120,6 +125,14 @@ async function runJudge0Testcases(data: any) {
         continue;
       }
 
+      // Добавляем память и время выполнения к общей сумме
+      if (finalResult.memory) {
+        total_memory += parseInt(finalResult.memory);
+      }
+      if (finalResult.time) {
+        total_time += parseFloat(finalResult.time) * 1000; // Конвертируем в миллисекунды
+      }
+
       // Status ID: 3 - Accepted, 4 - Wrong Answer, 5 - Time Limit Exceeded, 6 - Compilation Error
       if (finalResult.status?.id === 3) {
         tokens.push("OK");
@@ -142,6 +155,14 @@ async function runJudge0Testcases(data: any) {
     }
   }
 
+  // Определяем статус выполнения
+  let status: Status = Status.REJECTED;
+  if (correct_tests_count === total_tests) {
+    status = Status.ACCEPTED;
+  } else if (first_stderr?.includes("Time Limit Exceeded") || first_stderr?.includes("Compilation Error")) {
+    status = Status.ERROR;
+  }
+
   // Формируем сообщение о результатах
   let status_message = "";
   if (correct_tests_count === total_tests) {
@@ -156,7 +177,10 @@ async function runJudge0Testcases(data: any) {
     first_stderr: first_stderr || status_message,
     tests_count: total_tests,
     correct_tests_count,
-    status: correct_tests_count === total_tests ? 1 : 0
+    status,
+    total_memory,
+    total_time: Number(Math.round(total_time)), // Конвертируем в обычное число вместо BigInt
+    status_message
   };
 }
 
@@ -174,7 +198,7 @@ export async function POST(request: Request) {
     const task = await prisma.task.findUnique({
       where: { id: taskId },
       include: {
-        testCases: true, // Убираем лимит в 3 тесткейса
+        testCases: true,
         codeTemplates: {
           where: { language },
         },
@@ -206,6 +230,22 @@ export async function POST(request: Request) {
         stdin: tc.input,
         expected_output: tc.expectedOutput
       }))
+    });
+
+    // Сохраняем результаты в БД
+    await prisma.userTaskSubmission.create({
+      data: {
+        userId: session.user.id,
+        taskId: taskId,
+        code: code,
+        language: language,
+        memory: result.total_memory,
+        executionTime: BigInt(result.total_time), // Конвертируем в BigInt для БД
+        testsPassed: result.correct_tests_count,
+        testsTotal: result.tests_count,
+        status: result.status,
+        createdAt: new Date(),
+      },
     });
 
     return NextResponse.json(result);
