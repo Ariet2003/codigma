@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@auth/prisma-adapter": "^1.6.0",
+    "@clerk/nextjs": "^6.14.3",
     "@codemirror/lang-cpp": "^6.0.2",
     "@codemirror/lang-java": "^6.0.1",
     "@codemirror/lang-javascript": "^6.2.3",

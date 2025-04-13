@@ -39,39 +39,50 @@ export async function GET(
     }
 
     // Получаем статистику решений
-    const [totalSubmissionsResult, acceptedSubmissionsResult] = await Promise.all([
-      // Общее количество решений
-      prisma.$queryRaw<[{ count: bigint }]>`
-        SELECT COUNT(*) as count 
-        FROM "UserTaskSubmission" 
+    const [totalSubmissions, uniqueAcceptedUsers, bestMemoryResult] = await Promise.all([
+      // Общее количество попыток
+      prisma.userTaskSubmission.count({
+        where: {
+          taskId: params.id
+        }
+      }),
+      // Количество уникальных пользователей с успешными решениями
+      prisma.userTaskSubmission.findMany({
+        where: {
+          taskId: params.id,
+          status: "ACCEPTED"
+        },
+        select: {
+          userId: true
+        },
+        distinct: ['userId']
+      }),
+      // Минимальное значение памяти среди успешных решений
+      prisma.$queryRaw<[{ memory: bigint | null }]>`
+        SELECT MIN(memory) as memory
+        FROM "UserTaskSubmission"
         WHERE "taskId" = ${params.id}
-      `,
-      // Количество успешных решений
-      prisma.$queryRaw<[{ count: bigint }]>`
-        SELECT COUNT(*) as count 
-        FROM "UserTaskSubmission" 
-        WHERE "taskId" = ${params.id} 
-        AND status = 'ACCEPTED'
+          AND status = 'ACCEPTED'
+          AND memory > 0
       `
     ]);
 
-    const totalSubmissions = Number(totalSubmissionsResult[0].count);
-    const acceptedSubmissions = Number(acceptedSubmissionsResult[0].count);
-
-    // Получаем лучшие показатели времени и памяти
-    const bestSubmissionResult = await prisma.$queryRaw<Array<{
-      executionTime: bigint;
-      memory: bigint;
-    }>>`
-      SELECT "executionTime", memory
-      FROM "UserTaskSubmission"
-      WHERE "taskId" = ${params.id}
-        AND status = 'ACCEPTED'
-      ORDER BY "executionTime" ASC
-      LIMIT 1
-    `;
-
-    const bestSubmission = bestSubmissionResult[0] || null;
+    // Получаем лучшее время выполнения
+    const bestTimeResult = await prisma.userTaskSubmission.findFirst({
+      where: {
+        taskId: params.id,
+        status: "ACCEPTED",
+        executionTime: {
+          gt: 0
+        }
+      },
+      orderBy: {
+        executionTime: 'asc'
+      },
+      select: {
+        executionTime: true
+      }
+    });
 
     // Получаем статистику по языкам
     const languageStats = await prisma.$queryRaw<Array<{
@@ -114,10 +125,10 @@ export async function GET(
       codeTemplates: task.codeTemplates,
       isSolved: isSolvedResult.length > 0,
       stats: {
-        totalSubmissions,
-        acceptedSubmissions,
-        bestMemory: bestSubmission?.memory ? Number(bestSubmission.memory) : null,
-        bestTime: bestSubmission?.executionTime ? Number(bestSubmission.executionTime) : null,
+        totalSubmissions: Number(totalSubmissions),
+        acceptedSubmissions: uniqueAcceptedUsers.length,
+        bestMemory: bestMemoryResult[0]?.memory?.toString() || null,
+        bestTime: bestTimeResult?.executionTime ? Number(bestTimeResult.executionTime) : null,
         languageStats: languageStats.map(stat => ({
           language: stat.language,
           totalAttempts: Number(stat.totalAttempts),

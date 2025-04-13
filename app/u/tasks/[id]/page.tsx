@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Loader2, ArrowLeft, Play, ChevronDown, Check, History } from 'lucide-react';
+import { Loader2, ArrowLeft, Play, ChevronDown, Check, History, Users2, Trophy, Timer, Cpu, CheckCircle2, XCircle, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
@@ -53,7 +53,7 @@ type Task = {
   stats: {
     totalSubmissions: number;
     acceptedSubmissions: number;
-    bestMemory?: number;
+    bestMemory: string | null;
     bestTime?: number;
     languageStats: {
       language: string;
@@ -83,6 +83,9 @@ export default function TaskPage() {
   const [output, setOutput] = useState('');
   const [selectedTest, setSelectedTest] = useState(0);
   const { theme } = useTheme();
+  const [showHistory, setShowHistory] = useState(false);
+  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [loadingSubmissions, setLoadingSubmissions] = useState(false);
 
   // Функция для получения кода из LocalStorage
   const getStoredCode = (taskId: string, language: string) => {
@@ -106,6 +109,20 @@ export default function TaskPage() {
   const storeResults = (taskId: string, language: string, output: string) => {
     if (typeof window === 'undefined') return;
     localStorage.setItem(`results_${taskId}_${language}`, output);
+  };
+
+  const fetchSubmissions = async () => {
+    setLoadingSubmissions(true);
+    try {
+      const response = await fetch(`/api/u/tasks/${id}/submissions`);
+      if (!response.ok) throw new Error('Failed to fetch submissions');
+      const data = await response.json();
+      setSubmissions(data);
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setLoadingSubmissions(false);
+    }
   };
 
   useEffect(() => {
@@ -261,6 +278,21 @@ export default function TaskPage() {
     }
   };
 
+  const getLanguageName = (langId: string) => {
+    switch (langId) {
+      case 'cpp':
+        return 'C++';
+      case 'js':
+        return 'JavaScript';
+      case 'rust':
+        return 'Rust';
+      case 'java':
+        return 'Java';
+      default:
+        return langId;
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -282,13 +314,13 @@ export default function TaskPage() {
 
   return (
     <>
-      <div className="h-[calc(100vh-65px)] -mx-6">
+      <div className="h-[calc(110vh-65px)] -mx-8">
         <ResizablePanelGroup direction="horizontal" className="h-full">
           {/* Описание задачи */}
-          <ResizablePanel defaultSize={40} minSize={30}>
+          <ResizablePanel defaultSize={40} minSize={32}>
             <div className="h-full overflow-y-auto border-r">
               <div className="space-y-6 p-6">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -298,72 +330,176 @@ export default function TaskPage() {
                     <ArrowLeft className="w-4 h-4 mr-2" />
                     К списку задач
                   </Button>
+                  {showHistory ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowHistory(false)}
+                      className="hover:bg-muted"
+                    >
+                      <ArrowLeft className="w-4 h-4 mr-2" />
+                      К описанию
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setShowHistory(true);
+                        fetchSubmissions();
+                      }}
+                      className="hover:bg-muted gap-2"
+                    >
+                      <History className="w-4 h-4" />
+                      История
+                    </Button>
+                  )}
                 </div>
 
-                <div>
-                  <h1 className="text-2xl font-bold mb-4">{task.title}</h1>
-                  <div className="flex items-center gap-3 mb-6">
-                    <span className={cn(
-                      "inline-flex items-center px-3 py-1 rounded-full text-sm font-medium",
-                      task.difficulty === 'easy' && "bg-green-500/10 text-green-500",
-                      task.difficulty === 'medium' && "bg-yellow-500/10 text-yellow-500",
-                      task.difficulty === 'hard' && "bg-red-500/10 text-red-500"
-                    )}>
-                      {task.difficulty}
-                    </span>
-                    <span className={cn(
-                      "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium",
-                      task.isSolved 
-                        ? "bg-green-500/10 text-green-500" 
-                        : "bg-muted/50 text-muted-foreground"
-                    )}>
-                      {task.isSolved ? (
-                        <>
-                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                          Решено
-                        </>
-                      ) : (
-                        'Не решено'
-                      )}
-                    </span>
+                {showHistory ? (
+                  <div className="space-y-4">
+                    <h2 className="text-2xl font-bold">История решений</h2>
+                    {loadingSubmissions ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="w-6 h-6 animate-spin" />
+                      </div>
+                    ) : submissions.length === 0 ? (
+                      <div className="text-center py-8 text-muted-foreground">
+                        Нет отправленных решений
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {submissions.map((submission, index) => (
+                          <div
+                            key={submission.id}
+                            className="p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors"
+                          >
+                            <div className="flex flex-col gap-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                  <div className="text-sm text-muted-foreground font-medium">
+                                    {submissions.length - index}
+                                  </div>
+                                  <div className={cn(
+                                    "flex items-center gap-4",
+                                    submission.status === 'ACCEPTED' && "text-green-500",
+                                    submission.status === 'REJECTED' && "text-red-500",
+                                    submission.status === 'PENDING' && "text-yellow-500"
+                                  )}>
+                                    {submission.status === 'ACCEPTED' ? (
+                                      <CheckCircle2 className="w-4 h-4" />
+                                    ) : submission.status === 'REJECTED' ? (
+                                      <XCircle className="w-4 h-4" />
+                                    ) : (
+                                      <Clock className="w-4 h-4" />
+                                    )}
+                                    <div className="text-sm text-muted-foreground">
+                                      {submission.testsPassed} / {submission.testsTotal} тестов
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-6">
+                                  <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                      <Cpu className="w-4 h-4" />
+                                      {submission.memory ? `${submission.memory} KB` : '—'}
+                                    </div>
+                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                      <Timer className="w-4 h-4" />
+                                      {submission.executionTime ? `${submission.executionTime} мс` : '—'}
+                                    </div>
+                                  </div>
+                                  <div className="px-3 py-1 rounded-full text-xs font-medium bg-muted">
+                                    {getLanguageName(submission.language)}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <ReactMarkdown>{task.description}</ReactMarkdown>
-                  </div>
-
-                  <div className="mt-8 pt-6 border-t space-y-4">
-                    <h2 className="text-lg font-semibold">Статистика задачи</h2>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <div className="text-sm text-muted-foreground">Всего решений</div>
-                        <div className="text-2xl font-semibold">{task.stats.totalSubmissions}</div>
+                ) : (
+                  <>
+                    <div>
+                      <h1 className="text-2xl font-bold mb-4">{task.title}</h1>
+                      <div className="flex items-center gap-3 mb-6">
+                        <span className={cn(
+                          "inline-flex items-center px-3 py-1 rounded-full text-sm font-medium",
+                          task.difficulty === 'easy' && "bg-green-500/10 text-green-500",
+                          task.difficulty === 'medium' && "bg-yellow-500/10 text-yellow-500",
+                          task.difficulty === 'hard' && "bg-red-500/10 text-red-500"
+                        )}>
+                          {task.difficulty}
+                        </span>
+                        <span className={cn(
+                          "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium",
+                          task.isSolved 
+                            ? "bg-green-500/10 text-green-500" 
+                            : "bg-muted/50 text-muted-foreground"
+                        )}>
+                          {task.isSolved ? (
+                            <>
+                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M20 6L9 17L4 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                              Решено
+                            </>
+                          ) : (
+                            'Не решено'
+                          )}
+                        </span>
                       </div>
                       
-                      <div className="space-y-2">
-                        <div className="text-sm text-muted-foreground">Успешных решений</div>
-                        <div className="text-2xl font-semibold text-green-500">{task.stats.acceptedSubmissions}</div>
+                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <ReactMarkdown>{task.description}</ReactMarkdown>
                       </div>
-                    </div>
 
-                    <div className="space-y-2">
-                      <div className="text-sm text-muted-foreground">Лучшие показатели</div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="p-3 bg-muted/50 rounded-lg">
-                          <div className="text-sm text-muted-foreground">Память</div>
-                          <div className="font-mono">{task.stats.bestMemory ? `${(task.stats.bestMemory / 1024 / 1024).toFixed(1)} MB` : '—'}</div>
+                      <div className="mt-8 pt-6 border-t space-y-4">
+                        <h2 className="text-lg font-semibold">Статистика задачи</h2>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <div className="text-sm text-muted-foreground flex items-center gap-2">
+                              <Users2 className="w-4 h-4" />
+                              Всего решений
+                            </div>
+                            <div className="text-2xl font-semibold">{task.stats.totalSubmissions}</div>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <div className="text-sm text-muted-foreground flex items-center gap-2">
+                              <Trophy className="w-4 h-4" />
+                              Успешных решений
+                            </div>
+                            <div className="text-2xl font-semibold text-green-500">{task.stats.acceptedSubmissions}</div>
+                          </div>
                         </div>
-                        <div className="p-3 bg-muted/50 rounded-lg">
-                          <div className="text-sm text-muted-foreground">Время</div>
-                          <div className="font-mono">{task.stats.bestTime ? `${task.stats.bestTime} мс` : '—'}</div>
+
+                        <div className="space-y-2">
+                          <div className="text-sm text-muted-foreground">Лучшие показатели</div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="p-3 bg-muted/50 rounded-lg">
+                              <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                <Cpu className="w-4 h-4" />
+                                Память
+                              </div>
+                              <div className="font-mono">{task.stats.bestMemory ? `${task.stats.bestMemory} KB` : '—'}</div>
+                            </div>
+                            <div className="p-3 bg-muted/50 rounded-lg">
+                              <div className="text-sm text-muted-foreground flex items-center gap-2">
+                                <Timer className="w-4 h-4" />
+                                Время
+                              </div>
+                              <div className="font-mono">{task.stats.bestTime ? `${task.stats.bestTime} мс` : '—'}</div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </div>
+                  </>
+                )}
               </div>
             </div>
           </ResizablePanel>
@@ -431,28 +567,6 @@ export default function TaskPage() {
                           className="bg-popover/95 px-3 py-1.5"
                         >
                           <p className="text-xs">Запустить код (Ctrl + Enter)</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-
-                    <TooltipProvider delayDuration={0}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="gap-2"
-                            onClick={() => router.push(`/u/tasks/${id}/submissions`)}
-                          >
-                            <History className="w-4 h-4" />
-                            История
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent 
-                          side="bottom" 
-                          className="bg-popover/95 px-3 py-1.5"
-                        >
-                          <p className="text-xs">История решений</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -558,7 +672,7 @@ export default function TaskPage() {
                 <ResizableHandle withHandle className="bg-muted/50 hover:bg-muted/80 transition-colors data-[resize-handle-active]:bg-muted h-1.5" />
 
                 {/* Тесткейсы и результаты */}
-                <ResizablePanel defaultSize={50} minSize={40}>
+                <ResizablePanel defaultSize={80} minSize={25}>
                   <div className="h-full flex flex-col">
                     <div className="flex-1 overflow-auto p-4">
                       <div className="space-y-4">
