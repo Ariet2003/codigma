@@ -46,22 +46,35 @@ type Task = {
   id: string;
   title: string;
   difficulty: string;
-  solved: boolean;
+  isSolved: boolean;
   attempts: number;
-  acceptedCount: number;
+  uniqueAcceptedCount: number;
   category: string;
   rating: number;
 };
 
+type DailyStats = {
+  date: string;
+  correct: number;
+  incorrect: number;
+  total: number;
+};
+
 type TaskStats = {
   total: number;
-  solved: number;
+  tasksCompleted: number;
   byDifficulty: {
     easy: { total: number; solved: number };
     medium: { total: number; solved: number };
     hard: { total: number; solved: number };
   };
   submissionDates: string[];
+  dailyStats: Array<{
+    date: string;
+    correct: number;
+    incorrect: number;
+    total: number;
+  }>;
 };
 
 export default function TasksPage() {
@@ -80,13 +93,14 @@ export default function TasksPage() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<TaskStats>({
     total: 0,
-    solved: 0,
+    tasksCompleted: 0,
     byDifficulty: {
       easy: { total: 0, solved: 0 },
       medium: { total: 0, solved: 0 },
       hard: { total: 0, solved: 0 }
     },
-    submissionDates: []
+    submissionDates: [],
+    dailyStats: []
   });
   const [currentDate, setCurrentDate] = useState(new Date());
 
@@ -372,7 +386,17 @@ export default function TasksPage() {
                         )}
                         onClick={() => router.push(`/u/tasks/${task.id}`)}
                       >
-                        <TableCell className="text-center">{getStatusBadge(task.solved)}</TableCell>
+                        <TableCell className="text-center">
+                          {task.isSolved ? (
+                            <div className="flex items-center justify-center">
+                              <CheckCircle2 className="w-5 h-5 text-green-500 transition-transform duration-300 group-hover:scale-110" />
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-center">
+                              <Circle className="w-5 h-5 text-muted-foreground/50 transition-transform duration-300 group-hover:scale-110" />
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2 group-hover:text-primary transition-colors">
                             <span>{task.title}</span>
@@ -392,17 +416,12 @@ export default function TasksPage() {
                         </TableCell>
                         <TableCell className="text-right">
                           <span className="font-medium text-muted-foreground/90 group-hover:text-primary transition-colors">
-                            {task.acceptedCount}
+                            {task.uniqueAcceptedCount}
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="inline-flex items-center justify-end gap-1.5 font-medium text-muted-foreground/90 group-hover:text-primary transition-colors">
                             <span>{task.attempts || 0}</span>
-                            {task.attempts > 0 && (
-                              <span className="text-xs text-muted-foreground/70">
-                                {task.solved ? "✓" : ""}
-                              </span>
-                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -449,16 +468,41 @@ export default function TasksPage() {
                   <h3 className="text-lg font-semibold">Статистика решений</h3>
                 </div>
                 <div className="relative flex justify-center">
-                  <div className="w-32 h-32 rounded-full border-8 border-muted relative">
-                    <div 
-                      className="absolute inset-0 rounded-full border-8 border-primary"
-                      style={{
-                        clipPath: `polygon(50% 50%, -50% -50%, ${stats.solved / stats.total * 360}deg, 50% 50%)`
-                      }}
-                    />
+                  <div className="w-32 h-32 relative">
+                    <svg
+                      className="w-full h-full transform -rotate-90"
+                      viewBox="0 0 100 100"
+                    >
+                      {/* Фоновый круг */}
+                      <circle
+                        className="text-muted"
+                        strokeWidth="8"
+                        stroke="currentColor"
+                        fill="transparent"
+                        r="46"
+                        cx="50"
+                        cy="50"
+                      />
+                      {/* Прогресс */}
+                      <circle
+                        className="text-primary"
+                        strokeWidth="8"
+                        stroke="currentColor"
+                        fill="transparent"
+                        r="46"
+                        cx="50"
+                        cy="50"
+                        strokeLinecap="round"
+                        style={{
+                          strokeDasharray: `${2 * Math.PI * 46}`,
+                          strokeDashoffset: `${2 * Math.PI * 46 * (1 - stats.tasksCompleted / stats.total)}`,
+                          transition: 'stroke-dashoffset 0.5s ease'
+                        }}
+                      />
+                    </svg>
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className="text-center">
-                        <div className="text-2xl font-bold">{stats.solved}</div>
+                        <div className="text-2xl font-bold">{stats.tasksCompleted}</div>
                         <div className="text-xs text-muted-foreground">из {stats.total}</div>
                       </div>
                     </div>
@@ -543,40 +587,92 @@ export default function TasksPage() {
                   ))}
                 </div>
 
-                <div className="grid grid-cols-7 gap-1">
+                <div className="grid grid-cols-7 gap-1 [&>*:nth-child(n+8)]:mt-1">
                   {getDaysInMonth(currentDate).map((date, i) => {
                     if (!date) return <div key={`empty-${i}`} className="aspect-square" />;
                     
                     const dayNumber = date.getDate();
-                    const dateStr = date.toISOString().split('T')[0];
+                    const dateStr = new Date(
+                      date.getFullYear(),
+                      date.getMonth(),
+                      date.getDate()
+                    ).toLocaleDateString('en-CA'); // формат YYYY-MM-DD
+                    
                     const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-                    const hasSubmission = stats.submissionDates.includes(dateStr);
-                    const isToday = today.toISOString().split('T')[0] === dateStr;
+                    const todayStr = new Date(
+                      today.getFullYear(),
+                      today.getMonth(),
+                      today.getDate()
+                    ).toLocaleDateString('en-CA');
+                    
+                    const dailyStats = stats.dailyStats?.find(stat => stat.date === dateStr) || {
+                      correct: 0,
+                      incorrect: 0,
+                      total: 0
+                    };
+                    
+                    const hasSubmission = dailyStats.total > 0;
+                    const isToday = dateStr === todayStr;
                     const isCurrentMonth = date.getMonth() === currentDate.getMonth();
                     
                     return (
+                      <Tooltip key={dateStr}>
+                        <TooltipTrigger asChild>
                       <div
-                        key={dateStr}
                         className={cn(
                           "relative flex items-center justify-center",
                           "aspect-square rounded-md text-xs",
                           "transition-all duration-200",
-                          isToday && "ring-2 ring-primary ring-offset-2 ring-offset-background",
+                              "w-[28px] h-[28px] mx-auto",
+                              isToday && "ring-2 ring-primary ring-inset",
                           hasSubmission 
                             ? "bg-green-500 hover:bg-green-600 text-primary-foreground" 
                             : "bg-muted/50 hover:bg-muted border border-border",
                           !isCurrentMonth && "opacity-50"
                         )}
-                        title={`${date.toLocaleDateString('ru', { 
+                          >
+                            <span className={cn(
+                              "text-[11px]",
+                              isToday && "text-white font-bold"
+                            )}>{dayNumber}</span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent 
+                          className="bg-background/95 border-primary/20 shadow-md p-3"
+                          side="bottom"
+                        >
+                          <div className="space-y-2">
+                            <div className="font-medium">
+                              {date.toLocaleDateString('ru', { 
                           year: 'numeric',
                           month: 'long',
                           day: 'numeric',
                           weekday: 'long'
-                        })}: ${hasSubmission ? 'Есть решения' : 'Нет решений'}`}
-                      >
-                        {dayNumber}
+                              })}
+                            </div>
+                            {hasSubmission ? (
+                              <div className="space-y-1 text-sm">
+                                <div className="flex items-center gap-2">
+                                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                                  <span>Правильных решений: {dailyStats.correct}</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <XCircle className="w-4 h-4 text-red-500" />
+                                  <span>Неправильных решений: {dailyStats.incorrect}</span>
+                                </div>
+                                <div className="flex items-center gap-2 pt-1 border-t">
+                                  <Circle className="w-4 h-4 text-primary" />
+                                  <span>Всего попыток: {dailyStats.total}</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-sm text-muted-foreground">
+                                Нет решений
+                              </div>
+                            )}
                       </div>
+                        </TooltipContent>
+                      </Tooltip>
                     );
                   })}
                 </div>

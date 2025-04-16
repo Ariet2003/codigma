@@ -232,9 +232,14 @@ export default function TaskPage() {
         // Обновляем статус решения задачи
         setTask(prevTask => prevTask ? { ...prevTask, isSolved: true } : prevTask);
         
+        let successMessage = `Все тесты пройдены успешно (${result.correct_tests_count} из ${result.tests_count})`;
+        if (result.earnedScore) {
+          successMessage += `\nПоздравляем! Вы заработали ${result.earnedScore.toFixed(2)} баллов за первое решение!`;
+        }
+        
         toast.success("Задача решена!", {
-          description: `Все тесты пройдены успешно (${result.correct_tests_count} из ${result.tests_count})`,
-          duration: 3000
+          description: successMessage,
+          duration: 5000
         });
       } else {
         toast.error("Есть ошибки", {
