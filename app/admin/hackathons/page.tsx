@@ -264,7 +264,7 @@ export default function HackathonsPage() {
                   <TableCell>
                     {format(new Date(hackathon.endDate), "dd MMM yyyy HH:mm", { locale: ru })}
                   </TableCell>
-                  <TableCell>{hackathon.participants.length}</TableCell>
+                  <TableCell>{hackathon.participants?.length || 0}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Button

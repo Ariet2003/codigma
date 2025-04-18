@@ -2,13 +2,14 @@
 
 import { useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { toast } from "react-hot-toast"
 import { Button } from "@/components/ui/button"
 import { signIn } from "next-auth/react"
+import { useToast } from "@/hooks/use-toast"
 
 export function VerifyForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { toast } = useToast()
   const email = searchParams.get("email")
   const [isLoading, setIsLoading] = useState(false)
   const [verificationCode, setVerificationCode] = useState(["", "", "", "", "", ""])
@@ -39,13 +40,21 @@ export function VerifyForm() {
     e.preventDefault()
     
     if (!email) {
-      toast.error("Email не найден")
+      toast({
+        variant: "destructive",
+        title: "Ошибка",
+        description: "Email не найден"
+      })
       return
     }
 
     const code = verificationCode.join("")
     if (code.length !== 6) {
-      toast.error("Введите код полностью")
+      toast({
+        variant: "destructive",
+        title: "Ошибка",
+        description: "Введите код полностью"
+      })
       return
     }
 
@@ -69,7 +78,10 @@ export function VerifyForm() {
         throw new Error(data)
       }
 
-      toast.success("Email подтвержден")
+      toast({
+        title: "Успешно",
+        description: "Email подтвержден"
+      })
 
       // Получаем сохраненный пароль
       const encodedPassword = localStorage.getItem(`temp_password_${email}`)
@@ -89,14 +101,29 @@ export function VerifyForm() {
 
       if (signInResult?.error) {
         console.error("Ошибка входа:", signInResult.error)
-        toast.error("Не удалось выполнить вход автоматически")
+        toast({
+          variant: "destructive",
+          title: "Ошибка",
+          description: "Не удалось выполнить вход автоматически"
+        })
         router.push("/auth/signin")
       } else {
         localStorage.removeItem(`temp_password_${email}`)
-        router.push("/u/profile")
+        toast({
+          title: "Успешно",
+          description: "Регистрация успешно завершена!"
+        })
+        // Добавляем небольшую задержку перед перенаправлением
+        setTimeout(() => {
+          router.push("/u/hackathons")
+        }, 1500)
       }
     } catch (error: any) {
-      toast.error(error.message || "Что-то пошло не так")
+      toast({
+        variant: "destructive",
+        title: "Ошибка",
+        description: error.message || "Что-то пошло не так"
+      })
     } finally {
       setIsLoading(false)
     }

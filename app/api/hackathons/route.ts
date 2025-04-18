@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 // Функция для сериализации хакатона
 const serializeHackathon = (hackathon: any) => ({
@@ -70,104 +72,100 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "10");
-    const sort = searchParams.get("sort") || "startDate";
-    const order = searchParams.get("order") || "desc";
-    const status = searchParams.get("status") || "all";
-    const type = searchParams.get("type") || "all";
+    const limit = parseInt(searchParams.get("limit") || "9");
     const search = searchParams.get("search") || "";
+    const sortBy = searchParams.get("sortBy") || "startDate";
+    const order = searchParams.get("order") || "asc";
+    const status = searchParams.get("status") || "all";
 
+    const now = new Date();
     const skip = (page - 1) * limit;
 
-    // Базовые условия фильтрации
-    let where: any = {};
+    // Базовые условия для WHERE
+    let where: any = {
+      isOpen: true,
+    };
 
-    // Поиск по названию и описанию
     if (search) {
       where.OR = [
-        { title: { contains: search, mode: "insensitive" } },
-        { description: { contains: search, mode: "insensitive" } },
+        { title: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } }
       ];
     }
 
-    // Фильтрация по типу
-    if (type !== "all") {
-      where.isOpen = type === "open";
-    }
-
     // Фильтрация по статусу
-    const now = new Date();
-    if (status !== "all") {
-      switch (status) {
-        case "upcoming":
+    if (status === 'upcoming') {
           where.startDate = { gt: now };
-          break;
-        case "active":
+    } else if (status === 'ongoing') {
           where.AND = [
             { startDate: { lte: now } },
-            { endDate: { gte: now } },
+        { endDate: { gt: now } }
           ];
-          break;
-        case "completed":
+    } else if (status === 'completed') {
           where.endDate = { lt: now };
-          break;
-      }
     }
 
-    // Определяем поле для сортировки
+    // Настройка сортировки
     let orderBy: any = {};
-    switch (sort) {
-      case "title":
-      case "startDate":
-      case "endDate":
-      case "createdAt":
-        orderBy[sort] = order;
-        break;
-      case "participants":
+    if (sortBy === 'participantsCount') {
         orderBy = {
           participants: {
-            _count: order,
-          },
+          _count: order
+        }
         };
-        break;
-      default:
-        orderBy.startDate = "desc";
+    } else {
+      orderBy = {
+        [sortBy]: order
+      };
     }
 
-    // Получаем общее количество хакатонов
-    const total = await prisma.hackathon.count({ where });
-    const totalPages = Math.ceil(total / limit);
-
-    // Получаем хакатоны с учетом фильтрации, сортировки и пагинации
+    // Получаем хакатоны с информацией об участии пользователя
     const hackathons = await prisma.hackathon.findMany({
       where,
-      orderBy,
-      skip,
       take: limit,
+      skip,
+      orderBy,
       include: {
-        participants: true,
-        applications: true,
-        submissions: true,
-      },
+        participants: {
+          where: {
+            userId: session.user.id
+          }
+        },
+        _count: {
+          select: {
+            participants: true
+          }
+        }
+      }
     });
 
-    // Используем общую функцию сериализации
-    const serializedHackathons = hackathons.map(serializeHackathon);
+    // Получаем общее количество хакатонов для пагинации
+    const total = await prisma.hackathon.count({ where });
+
+    // Форматируем данные для фронтенда
+    const formattedHackathons = hackathons.map(hackathon => ({
+      ...hackathon,
+      isParticipating: hackathon.participants.length > 0,
+      participantsCount: hackathon._count.participants,
+      participants: undefined,
+      _count: undefined
+    }));
 
     return NextResponse.json({
-      hackathons: serializedHackathons,
-      totalPages,
-      currentPage: page,
-      total: Number(total),
+      hackathons: formattedHackathons,
+      total,
+      pages: Math.ceil(total / limit)
     });
   } catch (error) {
-    console.error("Ошибка при получении хакатонов:", error);
-    return NextResponse.json(
-      { message: "Произошла ошибка при получении хакатонов" },
-      { status: 500 }
-    );
+    console.error("[HACKATHONS]", error);
+    return new NextResponse("Internal Error", { status: 500 });
   }
 }
 

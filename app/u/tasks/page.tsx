@@ -493,12 +493,12 @@ export default function TasksPage() {
                         cx="50"
                         cy="50"
                         strokeLinecap="round"
-                        style={{
+                      style={{
                           strokeDasharray: `${2 * Math.PI * 46}`,
                           strokeDashoffset: `${2 * Math.PI * 46 * (1 - stats.tasksCompleted / stats.total)}`,
                           transition: 'stroke-dashoffset 0.5s ease'
-                        }}
-                      />
+                      }}
+                    />
                     </svg>
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className="text-center">

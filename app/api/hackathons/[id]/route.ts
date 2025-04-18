@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 // Функция для сериализации решения
 const serializeSubmission = (submission: any) => ({
@@ -31,53 +33,51 @@ const serializeHackathon = (hackathon: any) => ({
   submissions: hackathon.submissions?.map(serializeSubmission) || []
 });
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
+
     const hackathon = await prisma.hackathon.findUnique({
-      where: { id: params.id },
-      include: {
-        participants: true,
-        applications: true,
-        submissions: true,
+      where: {
+        id: params.id,
       },
+      include: {
+        participants: {
+          where: {
+            userId: session.user.id
+          }
+        },
+        _count: {
+          select: {
+            participants: true
+          }
+        }
+      }
     });
 
     if (!hackathon) {
-      return NextResponse.json(
-        { message: "Хакатон не найден" },
-        { status: 404 }
-      );
+      return new NextResponse("Not Found", { status: 404 });
     }
 
-    // Получаем информацию о задачах
-    const tasks = await prisma.task.findMany({
-      where: {
-        id: {
-          in: hackathon.tasks as string[],
-        },
-      },
-      select: {
-        id: true,
-        title: true,
-        difficulty: true,
-      },
-    });
+    // Форматируем данные для фронтенда
+    const formattedHackathon = {
+      ...hackathon,
+      isParticipating: hackathon.participants.length > 0,
+      participantsCount: hackathon._count.participants,
+      participants: undefined,
+      _count: undefined
+    };
 
-    // Сериализуем хакатон и добавляем задачи
-    const serializedHackathon = serializeHackathon(hackathon);
-    return NextResponse.json({
-      ...serializedHackathon,
-      tasks: tasks.map(task => ({
-        ...task,
-        id: String(task.id)
-      }))
-    });
+    return NextResponse.json(formattedHackathon);
   } catch (error) {
-    console.error("Ошибка при получении хакатона:", error);
-    return NextResponse.json(
-      { message: "Произошла ошибка при получении хакатона" },
-      { status: 500 }
-    );
+    console.error("[HACKATHON_GET]", error);
+    return new NextResponse("Internal Error", { status: 500 });
   }
 }
 

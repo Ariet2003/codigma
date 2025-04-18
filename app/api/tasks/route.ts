@@ -35,10 +35,10 @@ export async function GET(req: Request) {
 
     // Получаем информацию о решенных задачах пользователя
     const userSolvedTasks = await prisma.userTaskSubmission.findMany({
-      where: {
+            where: {
         userId: session.user.id,
         status: 'ACCEPTED'
-      },
+            },
       select: {
         taskId: true
       },
@@ -75,7 +75,7 @@ export async function GET(req: Request) {
         }
       },
       _count: {
-        id: true
+            id: true
       }
     });
 
