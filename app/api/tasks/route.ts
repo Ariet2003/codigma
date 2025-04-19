@@ -19,6 +19,7 @@ export async function GET(req: Request) {
     const status = searchParams.get("status");
     const sortBy = searchParams.get("sortBy") || "title";
     const order = searchParams.get("order") || "asc";
+    const ids = searchParams.get("ids")?.split(",") || [];
 
     const skip = (page - 1) * limit;
 
@@ -122,6 +123,7 @@ export async function GET(req: Request) {
     // Форматируем задачи с дополнительной информацией
     const formattedTasks = tasks.map(task => ({
       ...task,
+      difficulty: task.difficulty.toLowerCase(),
       isSolved: solvedTaskIds.has(task.id),
       attempts: attemptsMap.get(task.id) || 0,
       uniqueAcceptedCount: acceptedCountsMap.get(task.id) || 0
@@ -130,11 +132,41 @@ export async function GET(req: Request) {
     // Получаем общее количество задач для пагинации
     const total = await prisma.task.count({ where });
 
+    if (!ids.length) {
     return NextResponse.json({
       tasks: formattedTasks,
-      total,
+        total,
       pages: Math.ceil(total / limit)
     });
+    }
+
+    // Получаем статусы решений для текущего пользователя
+    const submissions = await prisma.taskSubmission.findMany({
+      where: {
+        taskId: {
+          in: ids
+        },
+        participant: {
+          userId: session.user.id
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      },
+      distinct: ['taskId'],
+      select: {
+        taskId: true,
+        status: true
+      }
+    });
+
+    // Добавляем статусы к задачам
+    const tasksWithStatus = formattedTasks.map(task => ({
+      ...task,
+      status: submissions.find(s => s.taskId === task.id)?.status || 'NOT_STARTED'
+    }));
+
+    return NextResponse.json({ tasks: tasksWithStatus });
   } catch (error) {
     console.error("[TASKS]", error);
     return new NextResponse("Internal Error", { status: 500 });

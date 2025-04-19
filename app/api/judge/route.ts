@@ -9,6 +9,8 @@ async function runJudge0Testcases(data: any) {
   let first_stderr: string | null = null;
   let correct_tests_count = 0;
   const total_tests = testcases.length;
+  let total_memory = 0;
+  let total_time = 0;
 
   const url = 'https://judge0-ce.p.rapidapi.com/submissions?base64_encoded=false&wait=false';
   const headers = {
@@ -100,7 +102,9 @@ async function runJudge0Testcases(data: any) {
         const result = await checkResponse.json();
         console.log(`Проверка результата для кейса ${idx + 1} (попытка ${attempts + 1}):`, {
           status_id: result.status?.id,
-          stderr: result.stderr
+          stderr: result.stderr,
+          memory: result.memory,
+          time: result.time
         });
 
         // Status ID: 1 - In Queue, 2 - Processing
@@ -125,6 +129,13 @@ async function runJudge0Testcases(data: any) {
       if (finalResult.status?.id === 3) {
         tokens.push("OK");
         correct_tests_count++;
+        // Добавляем память и время выполнения к общей сумме только для успешных тестов
+        if (finalResult.memory) {
+          total_memory += parseInt(finalResult.memory);
+        }
+        if (finalResult.time) {
+          total_time += parseFloat(finalResult.time) * 1000; // Конвертируем в миллисекунды
+        }
       } else {
         tokens.push(finalResult.status?.description || "Ошибка");
         incorrect_test_indexes.push(idx);
@@ -157,7 +168,9 @@ async function runJudge0Testcases(data: any) {
     first_stderr: first_stderr || status_message,
     tests_count: total_tests,
     correct_tests_count,
-    status: correct_tests_count === total_tests ? 1 : 0
+    status: correct_tests_count === total_tests ? 1 : 0,
+    total_memory,
+    total_time: Math.round(total_time) // Округляем время до целых миллисекунд
   };
 }
 

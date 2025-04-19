@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { updateHackathonScores } from "../../middleware";
 
 // Функция для сериализации решения
 const serializeSubmission = (submission: any) => ({
@@ -43,14 +44,41 @@ export async function GET(
       return new NextResponse("Unauthorized", { status: 401 });
     }
 
+    const { searchParams } = new URL(req.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "100");
+
     const hackathon = await prisma.hackathon.findUnique({
-      where: {
-        id: params.id,
-      },
+      where: { id: params.id },
       include: {
         participants: {
-          where: {
-            userId: session.user.id
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                image: true
+              }
+            },
+            submissions: {
+              where: {
+                status: 'ACCEPTED'
+              },
+              orderBy: {
+                createdAt: 'desc'
+              },
+              select: {
+                taskId: true,
+                memory: true,
+                executionTime: true,
+                createdAt: true,
+                task: {
+                  select: {
+                    difficulty: true
+                  }
+                }
+              }
+            }
           }
         },
         _count: {
@@ -65,12 +93,156 @@ export async function GET(
       return new NextResponse("Not Found", { status: 404 });
     }
 
-    // Форматируем данные для фронтенда
+    // Проверяем, завершился ли хакатон
+    const now = new Date();
+    const endDate = new Date(hackathon.endDate);
+    
+    if (now > endDate) {
+      // Проверяем, не обновлены ли уже баллы
+      const processedHackathon = await prisma.hackathon.findFirst({
+        where: {
+          id: params.id,
+          participants: {
+            some: {
+              user: {
+                totalScore: {
+                  gt: 0
+                }
+              }
+            }
+          }
+        }
+      });
+
+      // Если баллы еще не обновлены, обновляем их
+      if (!processedHackathon) {
+        await updateHackathonScores(params.id);
+      }
+    }
+
+    // Получаем все отправки текущего пользователя
+    const userSubmissions = await prisma.taskSubmission.findMany({
+      where: {
+        hackathonId: params.id,
+        participant: {
+          userId: session.user.id
+        }
+      }
+    });
+
+    // Получаем принятые отправки текущего пользователя
+    const userAcceptedSubmissions = await prisma.taskSubmission.findMany({
+      where: {
+        hackathonId: params.id,
+        participant: {
+          userId: session.user.id
+        },
+        status: 'ACCEPTED'
+      }
+    });
+
+    // Получаем уникальные решенные задачи текущего пользователя
+    const uniqueSolvedTasks = await prisma.taskSubmission.findMany({
+      where: {
+        hackathonId: params.id,
+        participant: {
+          userId: session.user.id
+        },
+        status: 'ACCEPTED'
+      },
+      distinct: ['taskId']
+    });
+
+    // Получаем текущий рейтинг пользователя
+    const currentParticipant = await prisma.hackathonParticipant.findFirst({
+      where: {
+        hackathonId: params.id,
+        userId: session.user.id
+      }
+    });
+
+    // Функция для получения константы сложности
+    const getDifficultyConstant = (difficulty: string) => {
+      switch (difficulty.toLowerCase()) {
+        case 'easy': return 1000000;
+        case 'medium': return 2000000;
+        case 'hard': return 3000000;
+        default: return 1000000;
+    }
+    };
+
+    // Обрабатываем всех участников для получения актуальных баллов
+    const allParticipants = await Promise.all(hackathon.participants.map(async participant => {
+      const uniqueSolvedTasks = new Set(participant.submissions.map(s => s.taskId));
+      const latestSolutionsByTask = new Map();
+      
+      participant.submissions.forEach(submission => {
+        if (!latestSolutionsByTask.has(submission.taskId) || 
+            submission.createdAt > latestSolutionsByTask.get(submission.taskId).createdAt) {
+          latestSolutionsByTask.set(submission.taskId, submission);
+        }
+      });
+
+      let totalScore = 0;
+      latestSolutionsByTask.forEach(submission => {
+        const t = Number(submission.executionTime) || 0;
+        const m = Number(submission.memory) || 0;
+        if (t > 0 && m > 0) {
+          const C = getDifficultyConstant(submission.task.difficulty);
+          totalScore += Math.log10(C) - Math.log10(Math.sqrt(t * m));
+        }
+      });
+
+      const finalScore = Number(Math.max(0, totalScore).toFixed(3));
+
+      // Обновляем балл в базе данных
+      await prisma.hackathonParticipant.update({
+        where: { id: participant.id },
+        data: { totalScore: finalScore }
+      });
+
+      return {
+        id: participant.id,
+        user: {
+          id: participant.user.id,
+          name: participant.user.name,
+          image: participant.user.image
+        },
+        solvedTasks: uniqueSolvedTasks.size,
+        score: finalScore
+      };
+    }));
+
+    // Сортируем всех участников по баллам
+    const sortedParticipants = allParticipants.sort((a, b) => b.score - a.score);
+
+    // Находим позицию текущего пользователя
+    const currentUserPosition = sortedParticipants.findIndex(p => p.user.id === session.user.id) + 1;
+    const currentUserPage = Math.ceil(currentUserPosition / limit);
+
+    // Применяем пагинацию
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + limit;
+    const paginatedParticipants = sortedParticipants.slice(startIndex, endIndex);
+
     const formattedHackathon = {
       ...hackathon,
-      isParticipating: hackathon.participants.length > 0,
+      isParticipating: hackathon.participants.some(p => p.user.id === session.user.id),
       participantsCount: hackathon._count.participants,
-      participants: undefined,
+      participants: paginatedParticipants,
+      currentUserId: session.user.id,
+      solvedTasksCount: uniqueSolvedTasks.length,
+      totalTasksCount: (hackathon.tasks as string[]).length,
+      currentRating: currentParticipant?.totalScore || 0,
+      submissionsCount: userSubmissions.length,
+      acceptedSubmissionsCount: userAcceptedSubmissions.length,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(sortedParticipants.length / limit),
+        totalParticipants: sortedParticipants.length,
+        currentUserPosition,
+        currentUserPage
+      },
       _count: undefined
     };
 
@@ -141,38 +313,45 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     }
 
     // Удаляем все связанные данные
-    await prisma.$transaction([
+    await prisma.$transaction(async (tx) => {
       // Удаляем решения задач
-      prisma.taskSubmission.deleteMany({
+      await tx.taskSubmission.deleteMany({
         where: { hackathonId: params.id },
-      }),
+      });
+
       // Удаляем заявки на участие
-      prisma.participationRequest.deleteMany({
+      await tx.participationRequest.deleteMany({
         where: { hackathonId: params.id },
-      }),
+      });
+
       // Получаем список участников для обновления их счетчиков
-      prisma.hackathonParticipant.findMany({
+      const participants = await tx.hackathonParticipant.findMany({
         where: { hackathonId: params.id },
         select: { userId: true }
-      }).then(participants => 
-        prisma.user.updateMany({
+      });
+
+      // Обновляем счетчики участников
+      if (participants.length > 0) {
+        await tx.user.updateMany({
           where: { id: { in: participants.map(p => p.userId) } },
           data: {
             hackathonsParticipated: {
               decrement: 1
             }
           }
-        })
-      ),
+        });
+      }
+
       // Удаляем участников
-      prisma.hackathonParticipant.deleteMany({
+      await tx.hackathonParticipant.deleteMany({
         where: { hackathonId: params.id },
-      }),
+      });
+
       // Удаляем сам хакатон
-      prisma.hackathon.delete({
+      await tx.hackathon.delete({
         where: { id: params.id },
-      }),
-    ]);
+      });
+    });
 
     return NextResponse.json({ message: "Хакатон успешно удален" });
   } catch (error) {

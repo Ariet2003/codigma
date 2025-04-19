@@ -48,6 +48,10 @@ type Hackathon = {
   isOpen: boolean;
   isParticipating: boolean;
   participantsCount: number;
+  solvedTasksCount?: number;
+  totalTasksCount?: number;
+  currentRating?: number;
+  totalParticipants?: number;
 };
 
 function CountdownTimer({ targetDate }: { targetDate: string }) {
@@ -331,7 +335,7 @@ export default function HackathonsPage() {
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/5" />
                 <CardHeader className="relative">
-                  <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between">
                     <CardTitle className="text-xl line-clamp-1">{hackathon.title}</CardTitle>
                     <div className="flex items-center gap-2">
                       {hackathon.isParticipating && (
@@ -340,13 +344,13 @@ export default function HackathonsPage() {
                           Участник
                         </Badge>
                       )}
-                      <Trophy className="h-5 w-5 text-primary" />
-                    </div>
+                <Trophy className="h-5 w-5 text-primary" />
+              </div>
                   </div>
                   <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
                     {cleanDescription(hackathon.description)}
-                  </p>
-                </CardHeader>
+              </p>
+            </CardHeader>
                 <CardContent className="relative space-y-4">
                 <div className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
@@ -363,6 +367,23 @@ export default function HackathonsPage() {
                       <span>{hackathon.participantsCount} участников</span>
                     </div>
                   </div>
+
+                  {hackathon.isParticipating && isHackathonActive(hackathon) && (
+                    <div className="grid grid-cols-2 gap-3 p-3 rounded-lg bg-muted/30">
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground">Решено задач</div>
+                        <div className="font-medium">
+                          {hackathon.solvedTasksCount || 0} / {hackathon.totalTasksCount || 0}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-xs text-muted-foreground">Текущий рейтинг</div>
+                        <div className="font-medium">
+                          {hackathon.currentRating || '-'} / {hackathon.totalParticipants || '-'}
+                        </div>
+                  </div>
+                </div>
+                  )}
 
                 <div className="flex items-center justify-between">
                     {isHackathonUpcoming(hackathon) ? (

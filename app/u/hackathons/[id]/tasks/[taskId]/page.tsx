@@ -29,7 +29,6 @@ import {
 } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { Toaster } from "sonner";
-import { useSession } from "next-auth/react";
 
 type Task = {
   id: string;
@@ -72,10 +71,121 @@ const languages = [
   { id: 'rust', name: 'Rust' }
 ];
 
-export default function TaskPage() {
-  const { id } = useParams();
+const SubmissionsHistory = ({ hackathonId, taskId }: { hackathonId: string, taskId: string }) => {
+  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const getLanguageName = (langId: string) => {
+    switch (langId) {
+      case 'cpp':
+        return 'C++';
+      case 'js':
+        return 'JavaScript';
+      case 'rust':
+        return 'Rust';
+      case 'java':
+        return 'Java';
+      default:
+        return langId;
+    }
+  };
+
+  useEffect(() => {
+    const fetchSubmissions = async () => {
+      try {
+        const response = await fetch(`/api/hackathons/${hackathonId}/submissions?taskId=${taskId}`);
+        if (!response.ok) throw new Error('Failed to fetch submissions');
+        const data = await response.json();
+        setSubmissions(data);
+      } catch (error) {
+        console.error('Error fetching submissions:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSubmissions();
+  }, [hackathonId, taskId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="w-6 h-6 animate-spin" />
+      </div>
+    );
+  }
+
+  if (submissions.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        Нет отправленных решений
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {submissions.map((submission, index) => (
+        <div
+          key={submission.id}
+          className="p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors"
+        >
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="text-sm text-muted-foreground font-medium">
+                  {submissions.length - index}
+                </div>
+                <div className={cn(
+                  "flex items-center gap-4",
+                  submission.status === 'ACCEPTED' && "text-green-500",
+                  submission.status === 'REJECTED' && "text-red-500",
+                  submission.status === 'PENDING' && "text-yellow-500"
+                )}>
+                  {submission.status === 'ACCEPTED' ? (
+                    <CheckCircle2 className="w-4 h-4" />
+                  ) : submission.status === 'REJECTED' ? (
+                    <XCircle className="w-4 h-4" />
+                  ) : (
+                    <Clock className="w-4 h-4" />
+                  )}
+                  <div className="text-sm text-muted-foreground">
+                    {submission.testsPassed} / {submission.testsTotal} тестов
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Cpu className="w-4 h-4" />
+                    {submission.memory ? `${submission.memory} КБ` : '—'}
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Timer className="w-4 h-4" />
+                    {submission.executionTime ? `${submission.executionTime} мс` : '—'}
+                  </div>
+                </div>
+                <div className="px-3 py-1 rounded-full text-xs font-medium bg-muted">
+                  {getLanguageName(submission.language)}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+interface Props {
+  params: {
+    id: string | string[];
+    taskId: string | string[];
+  };
+}
+
+export default function TaskPage({ params: { id, taskId } }: Props) {
   const router = useRouter();
-  const { data: session } = useSession();
   const [task, setTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedLanguage, setSelectedLanguage] = useState('cpp');
@@ -89,40 +199,42 @@ export default function TaskPage() {
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [loadingSubmissions, setLoadingSubmissions] = useState(false);
 
+  const hackathonId = String(Array.isArray(id) ? id[0] : id);
+  const taskIdString = String(Array.isArray(taskId) ? taskId[0] : taskId);
+
   // Функция для получения кода из LocalStorage
   const getStoredCode = (taskId: string, language: string) => {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem(`code_${taskId}_${language}`);
+    return localStorage.getItem(`hackathon_code_${taskId}_${language}`);
   };
 
   // Функция для сохранения кода в LocalStorage
   const storeCode = (taskId: string, language: string, code: string) => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(`code_${taskId}_${language}`, code);
+    localStorage.setItem(`hackathon_code_${taskId}_${language}`, code);
   };
 
   // Функция для получения результатов из LocalStorage
   const getStoredResults = (taskId: string, language: string) => {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem(`results_${taskId}_${language}`);
+    return localStorage.getItem(`hackathon_results_${taskId}_${language}`);
   };
 
   // Функция для сохранения результатов в LocalStorage
   const storeResults = (taskId: string, language: string, output: string) => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(`results_${taskId}_${language}`, output);
+    localStorage.setItem(`hackathon_results_${taskId}_${language}`, output);
   };
 
   const fetchSubmissions = async () => {
     setLoadingSubmissions(true);
     try {
-      const response = await fetch(`/api/u/tasks/${id}/submissions?userId=${session?.user?.id}`);
+      const response = await fetch(`/api/hackathons/${hackathonId}/tasks/${taskIdString}/submissions`);
       if (!response.ok) throw new Error('Failed to fetch submissions');
       const data = await response.json();
       setSubmissions(data);
     } catch (error) {
       console.error('Error:', error);
-      toast.error("Не удалось загрузить историю решений");
     } finally {
       setLoadingSubmissions(false);
     }
@@ -131,13 +243,13 @@ export default function TaskPage() {
   useEffect(() => {
     const fetchTask = async () => {
       try {
-        const response = await fetch(`/api/u/tasks/${id}`);
+        const response = await fetch(`/api/tasks/${taskIdString}?hackathonId=${hackathonId}`);
         if (!response.ok) throw new Error('Failed to fetch task');
         const data = await response.json();
         setTask(data);
         
         // Проверяем наличие сохраненного кода
-        const storedCode = getStoredCode(id as string, selectedLanguage);
+        const storedCode = getStoredCode(taskIdString, selectedLanguage);
         if (storedCode) {
           setCode(storedCode);
         } else {
@@ -145,7 +257,7 @@ export default function TaskPage() {
         }
 
         // Загружаем сохраненные результаты
-        const storedResults = getStoredResults(id as string, selectedLanguage);
+        const storedResults = getStoredResults(taskIdString, selectedLanguage);
         if (storedResults) {
           setOutput(storedResults);
         }
@@ -157,19 +269,19 @@ export default function TaskPage() {
     };
 
     fetchTask();
-  }, [id, selectedLanguage]);
+  }, [taskIdString, selectedLanguage, hackathonId]);
 
   // Сохраняем код при изменении
   useEffect(() => {
     if (task && code) {
-      storeCode(id as string, selectedLanguage, code);
+      storeCode(taskIdString, selectedLanguage, code);
     }
-  }, [code, id, selectedLanguage]);
+  }, [code, taskIdString, selectedLanguage]);
 
   // Обновляем обработчик выбора языка
   const handleLanguageChange = (langId: string) => {
     setSelectedLanguage(langId);
-    const storedCode = getStoredCode(id as string, langId);
+    const storedCode = getStoredCode(taskIdString, langId);
     if (storedCode) {
       setCode(storedCode);
     } else {
@@ -178,7 +290,7 @@ export default function TaskPage() {
     }
 
     // Загружаем сохраненные результаты для выбранного языка
-    const storedResults = getStoredResults(id as string, langId);
+    const storedResults = getStoredResults(taskIdString, langId);
     if (storedResults) {
       setOutput(storedResults);
     } else {
@@ -191,13 +303,15 @@ export default function TaskPage() {
     setOutput('');
     
     try {
-      const response = await fetch('/api/u/tasks/run', {
+      const response = await fetch('/api/hackathons/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          taskId: id,
+          hackathonId: hackathonId,
+          taskId: taskIdString,
           language: selectedLanguage,
-          code
+          code,
+          type: 'hackathon'
         })
       });
       
@@ -205,7 +319,7 @@ export default function TaskPage() {
         const error = await response.json();
         const errorMessage = error.error || 'Произошла ошибка при выполнении кода';
         setOutput(errorMessage);
-        storeResults(id as string, selectedLanguage, errorMessage);
+        storeResults(taskIdString, selectedLanguage, errorMessage);
         toast.error(errorMessage, {
           duration: 3000
         });
@@ -220,19 +334,13 @@ export default function TaskPage() {
         const isCorrect = !result.incorrect_test_indexes.includes(index);
         outputText += `Тест ${index + 1}: ${isCorrect ? 'Успешно' : token}\n`;
       });
-
-      // Добавляем информацию о времени выполнения и памяти, если есть
-      if (result.first_stderr && !result.first_stderr.includes('Все тесты пройдены успешно')) {
-        outputText += `\n${result.first_stderr}`;
-      }
-
+      
       setOutput(outputText);
-      // Сохраняем результаты в LocalStorage
-      storeResults(id as string, selectedLanguage, outputText);
+      storeResults(taskIdString, selectedLanguage, outputText);
 
       // Показываем уведомление о результатах
-      if (result.correct_tests_count === result.tests_count) {
-        // Обновляем статус решения задачи
+      if (result.incorrect_test_indexes.length === 0) {
+        // Обновляем статус решения задачи немедленно
         setTask(prevTask => prevTask ? { ...prevTask, isSolved: true } : prevTask);
         
         let successMessage = `Все тесты пройдены успешно (${result.correct_tests_count} из ${result.tests_count})`;
@@ -244,16 +352,48 @@ export default function TaskPage() {
           description: successMessage,
           duration: 5000
         });
+
+        // Обновляем статистику задачи
+        const updatedStats = task?.stats ? {
+          ...task.stats,
+          totalSubmissions: task.stats.totalSubmissions + 1,
+          acceptedSubmissions: task.stats.acceptedSubmissions + 1,
+          bestMemory: result.memory ? 
+            (task.stats.bestMemory ? 
+              Math.min(Number(task.stats.bestMemory), Number(result.memory)).toString() 
+              : result.memory.toString())
+            : task.stats.bestMemory,
+          bestTime: result.executionTime ? 
+            (task.stats.bestTime ? 
+              Math.min(task.stats.bestTime, Number(result.executionTime))
+              : Number(result.executionTime))
+            : task.stats.bestTime
+        } : undefined;
+
+        if (updatedStats) {
+          setTask(prevTask => prevTask ? { ...prevTask, stats: updatedStats } : prevTask);
+        }
       } else {
+        // Обновляем только общее количество попыток в статистике
+        const updatedStats = task?.stats ? {
+          ...task.stats,
+          totalSubmissions: task.stats.totalSubmissions + 1
+        } : undefined;
+
+        if (updatedStats) {
+          setTask(prevTask => prevTask ? { ...prevTask, stats: updatedStats } : prevTask);
+        }
+
         toast.error("Есть ошибки", {
           description: `Пройдено ${result.correct_tests_count} из ${result.tests_count} тестов`,
           duration: 3000
         });
       }
     } catch (error) {
+      console.error('Error:', error);
       const errorMessage = 'Произошла ошибка при выполнении кода';
       setOutput(errorMessage);
-      storeResults(id as string, selectedLanguage, errorMessage);
+      storeResults(taskIdString, selectedLanguage, errorMessage);
       toast.error(errorMessage, {
         duration: 3000
       });
@@ -267,20 +407,37 @@ export default function TaskPage() {
     setOutput('');
     
     try {
-      const response = await fetch('/api/tasks/submit', {
+      const response = await fetch('/api/hackathons/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          taskId: id,
+          hackathonId: hackathonId,
+          taskId: taskIdString,
           language: selectedLanguage,
-          code
+          code,
+          type: 'hackathon'
         })
       });
       
       const data = await response.json();
       setOutput(data.output);
+      
+      if (response.ok) {
+        toast.success('Решение успешно отправлено!', {
+          duration: 3000
+        });
+        // Обновляем список решений после успешной отправки
+        fetchSubmissions();
+      } else {
+        toast.error(data.error || 'Произошла ошибка при отправке решения', {
+          duration: 3000
+        });
+      }
     } catch (error) {
       setOutput('Произошла ошибка при отправке решения');
+      toast.error('Произошла ошибка при отправке решения', {
+        duration: 3000
+      });
     } finally {
       setIsRunning(false);
     }
@@ -332,7 +489,7 @@ export default function TaskPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => router.push('/u/tasks')}
+                    onClick={() => router.push(`/u/hackathons/${hackathonId}`)}
                     className="hover:bg-muted"
                   >
                     <ArrowLeft className="w-4 h-4 mr-2" />
@@ -367,66 +524,7 @@ export default function TaskPage() {
                 {showHistory ? (
                   <div className="space-y-4">
                     <h2 className="text-2xl font-bold">История решений</h2>
-                    {loadingSubmissions ? (
-                      <div className="flex items-center justify-center py-8">
-                        <Loader2 className="w-6 h-6 animate-spin" />
-                      </div>
-                    ) : submissions.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        Нет отправленных решений
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        {submissions.map((submission, index) => (
-                          <div
-                            key={submission.id}
-                            className="p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors"
-                          >
-                            <div className="flex flex-col gap-3">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-4">
-                                  <div className="text-sm text-muted-foreground font-medium">
-                                    {submissions.length - index}
-                                  </div>
-                                  <div className={cn(
-                                    "flex items-center gap-4",
-                                    submission.status === 'ACCEPTED' && "text-green-500",
-                                    submission.status === 'REJECTED' && "text-red-500",
-                                    submission.status === 'PENDING' && "text-yellow-500"
-                                  )}>
-                                    {submission.status === 'ACCEPTED' ? (
-                                      <CheckCircle2 className="w-4 h-4" />
-                                    ) : submission.status === 'REJECTED' ? (
-                                      <XCircle className="w-4 h-4" />
-                                    ) : (
-                                      <Clock className="w-4 h-4" />
-                                    )}
-                                    <div className="text-sm text-muted-foreground">
-                                      {submission.testsPassed} / {submission.testsTotal} тестов
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-6">
-                                  <div className="flex items-center gap-4">
-                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                      <Cpu className="w-4 h-4" />
-                                      {submission.memory ? `${submission.memory} KB` : '—'}
-                                    </div>
-                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                      <Timer className="w-4 h-4" />
-                                      {submission.executionTime ? `${submission.executionTime} мс` : '—'}
-                                    </div>
-                                  </div>
-                                  <div className="px-3 py-1 rounded-full text-xs font-medium bg-muted">
-                                    {getLanguageName(submission.language)}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    <SubmissionsHistory hackathonId={hackathonId} taskId={taskIdString} />
                   </div>
                 ) : (
                   <>
@@ -439,7 +537,8 @@ export default function TaskPage() {
                           task.difficulty === 'medium' && "bg-yellow-500/10 text-yellow-500",
                           task.difficulty === 'hard' && "bg-red-500/10 text-red-500"
                         )}>
-                          {task.difficulty}
+                          {task.difficulty === 'easy' ? 'Легкая' :
+                           task.difficulty === 'medium' ? 'Средняя' : 'Сложная'}
                         </span>
                         <span className={cn(
                           "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium",
@@ -473,7 +572,7 @@ export default function TaskPage() {
                               <Users2 className="w-4 h-4" />
                               Всего решений
                             </div>
-                            <div className="text-2xl font-semibold">{task.stats.totalSubmissions}</div>
+                            <div className="text-2xl font-semibold">{task.stats?.totalSubmissions || 0}</div>
                           </div>
                           
                           <div className="space-y-2">
@@ -481,26 +580,26 @@ export default function TaskPage() {
                               <Trophy className="w-4 h-4" />
                               Успешных решений
                             </div>
-                            <div className="text-2xl font-semibold text-green-500">{task.stats.acceptedSubmissions}</div>
+                            <div className="text-2xl font-semibold text-green-500">{task.stats?.acceptedSubmissions || 0}</div>
                           </div>
                         </div>
 
                         <div className="space-y-2">
                           <div className="text-sm text-muted-foreground">Лучшие показатели</div>
                           <div className="grid grid-cols-2 gap-4">
-                            <div className="p-3 bg-muted/50 rounded-lg">
+                            <div className="p-3 bg-muted/30 rounded-lg">
                               <div className="text-sm text-muted-foreground flex items-center gap-2">
                                 <Cpu className="w-4 h-4" />
-                                Память
+                                Мин. память
                               </div>
-                              <div className="font-mono">{task.stats.bestMemory ? `${task.stats.bestMemory} KB` : '—'}</div>
+                              <div className="font-mono">{task.stats?.bestMemory ? `${task.stats.bestMemory} КБ` : '—'}</div>
                             </div>
-                            <div className="p-3 bg-muted/50 rounded-lg">
+                            <div className="p-3 bg-muted/30 rounded-lg">
                               <div className="text-sm text-muted-foreground flex items-center gap-2">
                                 <Timer className="w-4 h-4" />
-                                Время
+                                Мин. время
                               </div>
-                              <div className="font-mono">{task.stats.bestTime ? `${task.stats.bestTime} мс` : '—'}</div>
+                              <div className="font-mono">{task.stats?.bestTime ? `${task.stats.bestTime} мс` : '—'}</div>
                             </div>
                           </div>
                         </div>
@@ -512,7 +611,7 @@ export default function TaskPage() {
             </div>
           </ResizablePanel>
 
-          <ResizableHandle withHandle className="bg-muted/50 hover:bg-muted/80 transition-colors data-[resize-handle-active]:bg-muted w-1.5" />
+          <ResizableHandle />
 
           {/* Редактор и тесты */}
           <ResizablePanel defaultSize={60} minSize={40}>
@@ -801,7 +900,7 @@ export default function TaskPage() {
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
-      <Toaster richColors position="top-center" />
+      <Toaster />
     </>
   );
 } 

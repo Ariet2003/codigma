@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
 // Функция для сериализации решения
 const serializeSubmission = (submission: any) => ({
@@ -34,14 +36,20 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return new NextResponse('Unauthorized', { status: 401 });
+    }
+
+    // Получаем параметр hackathonId из URL
+    const url = new URL(request.url);
+    const hackathonId = url.searchParams.get('hackathonId');
+
     const task = await prisma.task.findUnique({
-      where: {
-        id: params.id,
-      },
+      where: { id: params.id },
       include: {
         testCases: true,
         codeTemplates: true,
-        submissions: true,
       },
     });
 
@@ -52,7 +60,115 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(serializeTask(task));
+    let stats;
+    if (hackathonId) {
+      // Получаем статистику из TaskSubmission для хакатона
+      const submissions = await prisma.taskSubmission.findMany({
+        where: {
+          taskId: params.id,
+          participant: {
+            hackathonId: hackathonId
+          }
+        }
+      });
+
+      const acceptedSubmissions = submissions.filter(s => s.status === 'ACCEPTED');
+      
+      // Находим лучшие показатели памяти и времени среди успешных решений
+      let bestMemory = null;
+      let bestTime = null;
+      if (acceptedSubmissions.length > 0) {
+        bestMemory = Math.min(...acceptedSubmissions.map(s => Number(s.memory || Infinity)));
+        bestTime = Math.min(...acceptedSubmissions.map(s => Number(s.executionTime || Infinity)));
+      }
+
+      // Собираем статистику по языкам
+      const languageStats = await prisma.taskSubmission.groupBy({
+        by: ['language'],
+        where: {
+          taskId: params.id,
+          participant: {
+            hackathonId: hackathonId
+          }
+        },
+        _count: {
+          _all: true
+        }
+      });
+
+      const languageSuccessStats = await prisma.taskSubmission.groupBy({
+        by: ['language'],
+        where: {
+          taskId: params.id,
+          status: 'ACCEPTED',
+          participant: {
+            hackathonId: hackathonId
+          }
+        },
+        _count: {
+          _all: true
+        }
+      });
+
+      stats = {
+        totalSubmissions: submissions.length,
+        acceptedSubmissions: acceptedSubmissions.length,
+        bestMemory: bestMemory === null ? null : bestMemory.toString(),
+        bestTime: bestTime === null ? null : bestTime,
+        languageStats: languageStats.map(lang => ({
+          language: lang.language,
+          totalAttempts: lang._count._all,
+          successfulAttempts: languageSuccessStats.find(s => s.language === lang.language)?._count._all || 0,
+          successRate: ((languageSuccessStats.find(s => s.language === lang.language)?._count._all || 0) / lang._count._all) * 100
+        }))
+      };
+    } else {
+      // Существующая логика для UserTaskSubmission
+      const submissions = await prisma.userTaskSubmission.findMany({
+        where: {
+          taskId: params.id
+        }
+      });
+
+      // ... существующий код для UserTaskSubmission ...
+    }
+
+    // Проверяем статус решения
+    let isSolved = false;
+    if (hackathonId) {
+      const participant = await prisma.hackathonParticipant.findFirst({
+        where: {
+          hackathonId: hackathonId,
+          userId: session.user.id
+        }
+      });
+
+      if (participant) {
+        const submission = await prisma.taskSubmission.findFirst({
+          where: {
+            taskId: params.id,
+            participantId: participant.id,
+            status: 'ACCEPTED'
+          }
+        });
+        isSolved = !!submission;
+      }
+    } else {
+      const submission = await prisma.userTaskSubmission.findFirst({
+        where: {
+          taskId: params.id,
+          userId: session.user.id,
+          status: 'ACCEPTED'
+        }
+      });
+      isSolved = !!submission;
+    }
+
+    return NextResponse.json({
+      ...task,
+      stats,
+      isSolved
+    });
   } catch (error) {
     console.error("Error fetching task:", error);
     return NextResponse.json(

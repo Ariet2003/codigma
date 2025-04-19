@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 
 export async function GET(
@@ -6,37 +8,57 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return new NextResponse('Unauthorized', { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
+
+    if (!userId) {
+      return new NextResponse('UserId is required', { status: 400 });
+    }
+
+    // Проверяем, что пользователь запрашивает свои собственные решения
+    if (userId !== session.user.id) {
+      return new NextResponse('Forbidden', { status: 403 });
+    }
+
     const submissions = await prisma.userTaskSubmission.findMany({
       where: {
         taskId: params.id,
+        userId: userId
       },
       orderBy: {
-        createdAt: 'desc',
+        createdAt: 'desc'
       },
       select: {
         id: true,
-        createdAt: true,
         status: true,
         language: true,
         memory: true,
         executionTime: true,
-        code: true,
         testsPassed: true,
         testsTotal: true,
-      },
+        createdAt: true
+      }
     });
 
-    // Преобразуем BigInt в строку для JSON
+    // Преобразуем BigInt в число перед отправкой
     const formattedSubmissions = submissions.map(submission => ({
       ...submission,
-      memory: submission.memory ? Number(submission.memory) : null,
       executionTime: submission.executionTime ? Number(submission.executionTime) : null,
-      createdAt: submission.createdAt.toISOString(),
+      memory: submission.memory ? Number(submission.memory) : null,
+      createdAt: submission.createdAt.toISOString()
     }));
 
     return NextResponse.json(formattedSubmissions);
   } catch (error) {
-    console.error('[SUBMISSIONS_GET]', error);
-    return new NextResponse('Internal Error', { status: 500 });
+    console.error('Error:', error);
+    return NextResponse.json(
+      { error: 'Внутренняя ошибка сервера' },
+      { status: 500 }
+    );
   }
 } 
