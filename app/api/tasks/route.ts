@@ -47,6 +47,15 @@ export async function GET(req: Request) {
       skip,
       orderBy: {
         [sortBy]: order
+      },
+      include: {
+        userSubmissions: {
+          select: {
+            id: true,
+            status: true,
+            userId: true
+          }
+        }
       }
     });
 
@@ -120,10 +129,22 @@ export async function GET(req: Request) {
       });
 
       const solvedTaskIds = new Set(userSolvedTasks.map(t => t.taskId));
-      tasksWithStatus = tasks.map(task => ({
-        ...task,
-        isSolved: solvedTaskIds.has(task.id)
-      }));
+      tasksWithStatus = tasks.map(task => {
+        // Подсчитываем уникальных пользователей, решивших задачу
+        const uniqueAcceptedUsers = new Set(
+          task.userSubmissions
+            .filter(s => s.status === 'ACCEPTED')
+            .map(s => s.userId)
+        );
+
+        return {
+          ...task,
+          isSolved: solvedTaskIds.has(task.id),
+          uniqueAcceptedCount: uniqueAcceptedUsers.size,
+          attempts: task.userSubmissions.length,
+          userSubmissions: undefined // Удаляем ненужные данные из ответа
+        };
+      });
 
       // Применяем фильтр по статусу если он указан
       if (status && status !== 'all') {

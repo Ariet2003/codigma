@@ -246,6 +246,12 @@ export default function HackathonPage({ params }: { params: { id: string } }) {
     return now < startDate;
   };
 
+  const isHackathonFinished = (hackathon: Hackathon) => {
+    const now = new Date();
+    const endDate = new Date(hackathon.endDate);
+    return now > endDate;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -373,47 +379,49 @@ export default function HackathonPage({ params }: { params: { id: string } }) {
               )}
 
               {/* Добавляем блок статистики и навигации для активных участников */}
-              {hackathon.isParticipating && isHackathonActive(hackathon) && (
+              {(hackathon.isParticipating && isHackathonActive(hackathon)) || isHackathonFinished(hackathon) ? (
                 <div className="space-y-6">
                   {/* Статистика */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="bg-card/50 backdrop-blur-sm rounded-xl p-4 border border-primary/10">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <CheckCircle2 className="w-4 h-4 text-primary" />
-                        Решено задач
+                  {hackathon.isParticipating && isHackathonActive(hackathon) && (
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div className="bg-card/50 backdrop-blur-sm rounded-xl p-4 border border-primary/10">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <CheckCircle2 className="w-4 h-4 text-primary" />
+                          Решено задач
+                        </div>
+                        <div className="text-2xl font-semibold mt-1">
+                          {hackathon.solvedTasksCount} / {hackathon.totalTasksCount}
+                        </div>
                       </div>
-                      <div className="text-2xl font-semibold mt-1">
-                        {hackathon.solvedTasksCount} / {hackathon.totalTasksCount}
+                      <div className="bg-card/50 backdrop-blur-sm rounded-xl p-4 border border-primary/10">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Trophy className="w-4 h-4 text-primary" />
+                          Баллы
+                        </div>
+                        <div className="text-2xl font-semibold mt-1">
+                          {hackathon.currentRating.toFixed(3)}
+                        </div>
+                      </div>
+                      <div className="bg-card/50 backdrop-blur-sm rounded-xl p-4 border border-primary/10">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Send className="w-4 h-4 text-primary" />
+                          Количество отправок
+                        </div>
+                        <div className="text-2xl font-semibold mt-1">
+                          {hackathon.submissionsCount}
+                        </div>
+                      </div>
+                      <div className="bg-card/50 backdrop-blur-sm rounded-xl p-4 border border-primary/10">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <CheckSquare className="w-4 h-4 text-primary" />
+                          Правильных отправок
+                        </div>
+                        <div className="text-2xl font-semibold mt-1">
+                          {hackathon.acceptedSubmissionsCount}
+                        </div>
                       </div>
                     </div>
-                    <div className="bg-card/50 backdrop-blur-sm rounded-xl p-4 border border-primary/10">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Trophy className="w-4 h-4 text-primary" />
-                        Баллы
-                      </div>
-                      <div className="text-2xl font-semibold mt-1">
-                        {hackathon.currentRating.toFixed(3)}
-                      </div>
-                    </div>
-                    <div className="bg-card/50 backdrop-blur-sm rounded-xl p-4 border border-primary/10">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Send className="w-4 h-4 text-primary" />
-                        Количество отправок
-                      </div>
-                      <div className="text-2xl font-semibold mt-1">
-                        {hackathon.submissionsCount}
-                      </div>
-                    </div>
-                    <div className="bg-card/50 backdrop-blur-sm rounded-xl p-4 border border-primary/10">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <CheckSquare className="w-4 h-4 text-primary" />
-                        Правильных отправок
-                      </div>
-                      <div className="text-2xl font-semibold mt-1">
-                        {hackathon.acceptedSubmissionsCount}
-                      </div>
-                    </div>
-                  </div>
+                  )}
 
                   {/* Навигационные кнопки */}
                   <div className="flex items-center gap-2 p-1 bg-muted/50 rounded-lg">
@@ -427,15 +435,17 @@ export default function HackathonPage({ params }: { params: { id: string } }) {
                       Описание
                     </Button>
 
-                    <Button
-                      variant="ghost"
-                      className="flex-1 h-11 gap-2 rounded-md hover:bg-background hover:text-foreground data-[active=true]:bg-background data-[active=true]:text-foreground"
-                      onClick={() => setActiveTab('tasks')}
-                      data-active={activeTab === 'tasks'}
-                    >
-                      <FileText className="w-4 h-4" />
-                      Задачи
-                    </Button>
+                    {hackathon.isParticipating && isHackathonActive(hackathon) && (
+                      <Button
+                        variant="ghost"
+                        className="flex-1 h-11 gap-2 rounded-md hover:bg-background hover:text-foreground data-[active=true]:bg-background data-[active=true]:text-foreground"
+                        onClick={() => setActiveTab('tasks')}
+                        data-active={activeTab === 'tasks'}
+                      >
+                        <FileText className="w-4 h-4" />
+                        Задачи
+                      </Button>
+                    )}
 
                     <Button
                       variant="ghost"
@@ -628,10 +638,10 @@ export default function HackathonPage({ params }: { params: { id: string } }) {
                     </div>
                   )}
                 </div>
-              )}
+              ) : null}
 
               {/* Описание для неактивных участников */}
-              {(!hackathon.isParticipating || !isHackathonActive(hackathon)) && (
+              {(!hackathon.isParticipating || !isHackathonActive(hackathon)) && activeTab === 'description' && (
                 <div className="prose prose-zinc dark:prose-invert max-w-none">
                   <Markdown>{hackathon.description}</Markdown>
                 </div>
