@@ -1,93 +1,136 @@
-import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import prisma from "@/lib/prisma";
 
-export async function GET(request: Request) {
+const ITEMS_PER_PAGE = 100;
+
+export type SortType = 'score' | 'tasks' | 'hackathons';
+
+export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const sortBy = searchParams.get('sortBy') || 'totalScore';
-    const order = searchParams.get('order') || 'desc';
-    const page = parseInt(searchParams.get('page') || '1');
-    const pageSize = 200;
+    const session = await getServerSession(authOptions);
+    const searchParams = req.nextUrl.searchParams;
+    const page = parseInt(searchParams.get("page") || "1");
+    const search = searchParams.get("search") || "";
+    const sortBy = (searchParams.get("sortBy") || 'score') as SortType;
 
-    // Определяем поле для сортировки
-    let orderBy: any = {};
+    // Определяем порядок сортировки в зависимости от выбранного типа
+    const orderBy = {
+      score: [
+        { totalScore: "desc" as const },
+        { tasksCompleted: "desc" as const },
+        { hackathonsParticipated: "desc" as const },
+        { name: "asc" as const }
+      ],
+      tasks: [
+        { tasksCompleted: "desc" as const },
+        { totalScore: "desc" as const },
+        { hackathonsParticipated: "desc" as const },
+        { name: "asc" as const }
+      ],
+      hackathons: [
+        { hackathonsParticipated: "desc" as const },
+        { totalScore: "desc" as const },
+        { tasksCompleted: "desc" as const },
+        { name: "asc" as const }
+      ]
+    }[sortBy];
 
-    // Для полей, которые есть в базе данных
-    if (['totalScore', 'tasksCompleted', 'hackathonsParticipated', 'name', 'email'].includes(sortBy)) {
-      orderBy = {
-        [sortBy]: order.toLowerCase()
-      };
-    } else {
-      // По умолчанию сортируем по общему баллу
-      orderBy = {
-        totalScore: 'desc'
-      };
-    }
+    // Базовый запрос для подсчета общего количества пользователей
+    const baseWhereClause = search
+      ? {
+          name: {
+            contains: search,
+            mode: "insensitive" as const,
+          },
+        }
+      : {};
 
     // Получаем общее количество пользователей
-    const totalUsers = await db.user.count();
+    const totalUsers = await prisma.user.count({
+      where: baseWhereClause,
+    });
 
-    const users = await db.user.findMany({
+    // Получаем позицию текущего пользователя
+    let currentUserPosition = null;
+    let currentUserPage = null;
+    
+    if (session?.user?.email) {
+      const usersAbove = await prisma.user.count({
+        where: {
+          [sortBy === 'score' ? 'totalScore' : 
+           sortBy === 'tasks' ? 'tasksCompleted' : 
+           'hackathonsParticipated']: {
+            gt: session.user[sortBy === 'score' ? 'totalScore' : 
+                           sortBy === 'tasks' ? 'tasksCompleted' : 
+                           'hackathonsParticipated'] || 0,
+          },
+        },
+      });
+      currentUserPosition = usersAbove + 1;
+      currentUserPage = Math.ceil(currentUserPosition / ITEMS_PER_PAGE);
+    }
+
+    // Получаем всех пользователей для определения их реальных позиций
+    const allUsers = await prisma.user.findMany({
       select: {
         id: true,
-        name: true,
-        email: true,
         totalScore: true,
         tasksCompleted: true,
         hackathonsParticipated: true,
-        participations: {
-          select: {
-            submissions: {
-              select: {
-                id: true
-              }
-            }
-          }
-        }
+        name: true,
       },
       orderBy,
-      skip: (page - 1) * pageSize,
-      take: pageSize
     });
 
-    // Подсчитываем общее количество отправок для каждого пользователя
-    let usersWithSubmissions = users.map(user => {
-      const totalSubmissions = user.participations.reduce(
-        (acc, participation) => acc + participation.submissions.length,
-        0
-      );
+    // Создаем карту позиций
+    const positionMap = new Map();
+    let position = 1;
 
-      // Удаляем ненужные данные о participations из ответа
-      const { participations, ...userData } = user;
-
-      return {
-        ...userData,
-        totalSubmissions
-      };
-    });
-
-    // Если сортировка по totalSubmissions, применяем её после подсчёта
-    if (sortBy === 'totalSubmissions') {
-      usersWithSubmissions = usersWithSubmissions.sort((a, b) => {
-        return order.toLowerCase() === 'desc' 
-          ? b.totalSubmissions - a.totalSubmissions
-          : a.totalSubmissions - b.totalSubmissions;
-      });
+    // Теперь каждый пользователь получает уникальную позицию
+    for (const user of allUsers) {
+      positionMap.set(user.id, position);
+      position++;
     }
 
+    // Получаем пользователей для текущей страницы
+    const users = await prisma.user.findMany({
+      where: baseWhereClause,
+      select: {
+        id: true,
+        name: true,
+        image: true,
+        totalScore: true,
+        tasksCompleted: true,
+        hackathonsParticipated: true,
+      },
+      orderBy,
+      skip: (page - 1) * ITEMS_PER_PAGE,
+      take: ITEMS_PER_PAGE,
+    });
+
+    // Добавляем реальные позиции к пользователям
+    const usersWithPositions = users.map(user => ({
+      ...user,
+      position: positionMap.get(user.id) || 0
+    }));
+
     return NextResponse.json({
-      users: usersWithSubmissions,
+      users: usersWithPositions,
       pagination: {
-        total: totalUsers,
-        pageSize,
         currentPage: page,
-        totalPages: Math.ceil(totalUsers / pageSize)
-      }
+        totalPages: Math.ceil(totalUsers / ITEMS_PER_PAGE),
+        totalUsers,
+        currentUserPosition,
+        currentUserPage,
+      },
+      currentSort: sortBy,
     });
   } catch (error) {
-    console.error('Error fetching rating:', error);
+    console.error("Error in rating API:", error);
     return NextResponse.json(
-      { error: 'Внутренняя ошибка сервера' },
+      { error: "Internal Server Error" },
       { status: 500 }
     );
   }
