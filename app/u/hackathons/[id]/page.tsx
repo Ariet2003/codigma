@@ -180,7 +180,7 @@ export default function HackathonPage({ params }: { params: { id: string } }) {
       
       setLoadingTasks(true);
       try {
-        const response = await fetch(`/api/tasks?ids=${hackathon.tasks.join(',')}`);
+        const response = await fetch(`/api/tasks?ids=${hackathon.tasks.join(',')}&hackathonId=${hackathon.id}`);
         if (!response.ok) throw new Error('Failed to fetch tasks');
         const data = await response.json();
         setTasks(data.tasks);

@@ -4,6 +4,11 @@ import { Prisma } from "@prisma/client";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
+type Submission = {
+  taskId: string;
+  status: string;
+};
+
 export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -20,6 +25,7 @@ export async function GET(req: Request) {
     const sortBy = searchParams.get("sortBy") || "title";
     const order = searchParams.get("order") || "asc";
     const ids = searchParams.get("ids")?.split(",") || [];
+    const hackathonId = searchParams.get("hackathonId");
 
     const skip = (page - 1) * limit;
 
@@ -34,28 +40,6 @@ export async function GET(req: Request) {
       where.difficulty = difficulty.toUpperCase();
     }
 
-    // Получаем информацию о решенных задачах пользователя
-    const userSolvedTasks = await prisma.userTaskSubmission.findMany({
-            where: {
-        userId: session.user.id,
-        status: 'ACCEPTED'
-            },
-      select: {
-        taskId: true
-      },
-      distinct: ['taskId']
-    });
-
-    const solvedTaskIds = new Set(userSolvedTasks.map(t => t.taskId));
-
-    if (status && status !== 'all') {
-      if (status === 'solved') {
-        where.id = { in: Array.from(solvedTaskIds) };
-      } else if (status === 'unsolved') {
-        where.id = { notIn: Array.from(solvedTaskIds) };
-      }
-    }
-
     // Получаем задачи с дополнительной статистикой
     const tasks = await prisma.task.findMany({
       where,
@@ -66,107 +50,104 @@ export async function GET(req: Request) {
       }
     });
 
-    // Получаем количество попыток для каждой задачи текущего пользователя
-    const userAttempts = await prisma.userTaskSubmission.groupBy({
-      by: ['taskId'],
-      where: {
-        userId: session.user.id,
-        taskId: {
-          in: tasks.map(t => t.id)
-        }
-      },
-      _count: {
-            id: true
-      }
-    });
+    let tasksWithStatus;
 
-    // Получаем количество уникальных пользователей, решивших каждую задачу
-    const acceptedCounts = await prisma.userTaskSubmission.groupBy({
-      by: ['taskId'],
-      where: {
-        status: 'ACCEPTED',
-        taskId: {
-          in: tasks.map(t => t.id)
+    if (hackathonId) {
+      // Для задач хакатона
+      const participant = await prisma.hackathonParticipant.findFirst({
+        where: {
+          userId: session.user.id,
+          hackathonId: hackathonId
         }
-      },
-      _count: {
-        _all: true
-      },
-      having: {
-        userId: {
-          _count: {
-            gt: 0
+      });
+
+      if (participant) {
+        // Получаем все решения задач участника
+        const submissions = await prisma.taskSubmission.findMany({
+          where: {
+            participantId: participant.id,
+            taskId: {
+              in: tasks.map(t => t.id)
+            }
+          },
+          orderBy: {
+            createdAt: 'desc'
+          },
+          distinct: ['taskId'],
+          select: {
+            taskId: true,
+            status: true
           }
+        });
+
+        // Создаем Map для быстрого доступа к статусам
+        const statusMap = new Map(
+          submissions.map(s => [s.taskId, s.status])
+        );
+
+        tasksWithStatus = tasks.map(task => ({
+          ...task,
+          status: statusMap.get(task.id) || 'NOT_STARTED',
+          isSolved: statusMap.get(task.id) === 'ACCEPTED'
+        }));
+
+        // Применяем фильтр по статусу если он указан
+        if (status && status !== 'all') {
+          tasksWithStatus = tasksWithStatus.filter(task => {
+            if (status === 'solved') return task.isSolved;
+            if (status === 'unsolved') return !task.isSolved;
+            return true;
+          });
         }
+      } else {
+        tasksWithStatus = tasks.map(task => ({
+          ...task,
+          status: 'NOT_STARTED',
+          isSolved: false
+        }));
       }
-    });
+    } else {
+      // Для обычных задач
+      const userSolvedTasks = await prisma.userTaskSubmission.findMany({
+        where: {
+          userId: session.user.id,
+          status: 'ACCEPTED'
+        },
+        select: {
+          taskId: true
+        },
+        distinct: ['taskId']
+      });
 
-    // Получаем количество уникальных пользователей для каждой задачи
-    const uniqueUserCounts = await prisma.$queryRaw`
-      SELECT 
-        "taskId",
-        COUNT(DISTINCT "userId") as unique_users
-      FROM "UserTaskSubmission"
-      WHERE 
-        "taskId" IN (${Prisma.join(tasks.map(t => t.id))})
-        AND status = 'ACCEPTED'
-      GROUP BY "taskId"
-    `;
+      const solvedTaskIds = new Set(userSolvedTasks.map(t => t.taskId));
+      tasksWithStatus = tasks.map(task => ({
+        ...task,
+        isSolved: solvedTaskIds.has(task.id)
+      }));
 
-    // Создаем Map для быстрого доступа к статистике
-    const attemptsMap = new Map(userAttempts.map(a => [a.taskId, a._count.id]));
-    const acceptedCountsMap = new Map(
-      (uniqueUserCounts as { taskId: string; unique_users: number }[])
-        .map(a => [a.taskId, Number(a.unique_users)])
-    );
-
-    // Форматируем задачи с дополнительной информацией
-    const formattedTasks = tasks.map(task => ({
-      ...task,
-      difficulty: task.difficulty.toLowerCase(),
-      isSolved: solvedTaskIds.has(task.id),
-      attempts: attemptsMap.get(task.id) || 0,
-      uniqueAcceptedCount: acceptedCountsMap.get(task.id) || 0
-    }));
-
-    // Получаем общее количество задач для пагинации
-    const total = await prisma.task.count({ where });
-
-    if (!ids.length) {
-    return NextResponse.json({
-      tasks: formattedTasks,
-        total,
-      pages: Math.ceil(total / limit)
-    });
+      // Применяем фильтр по статусу если он указан
+      if (status && status !== 'all') {
+        tasksWithStatus = tasksWithStatus.filter(task => {
+          if (status === 'solved') return task.isSolved;
+          if (status === 'unsolved') return !task.isSolved;
+          return true;
+        });
+      }
     }
 
-    // Получаем статусы решений для текущего пользователя
-    const submissions = await prisma.taskSubmission.findMany({
-      where: {
-        taskId: {
-          in: ids
-        },
-        participant: {
-          userId: session.user.id
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      },
-      distinct: ['taskId'],
-      select: {
-        taskId: true,
-        status: true
-      }
+    // Если запрашиваются конкретные задачи по ID
+    if (ids.length) {
+      return NextResponse.json({ tasks: tasksWithStatus });
+    }
+
+    // Получаем общее количество задач для пагинации
+    const total = tasksWithStatus.length;
+
+    return NextResponse.json({
+      tasks: tasksWithStatus,
+      total,
+      pages: Math.ceil(total / limit)
     });
-
-    // Добавляем статусы к задачам
-    const tasksWithStatus = formattedTasks.map(task => ({
-      ...task,
-      status: submissions.find(s => s.taskId === task.id)?.status || 'NOT_STARTED'
-    }));
-
-    return NextResponse.json({ tasks: tasksWithStatus });
   } catch (error) {
     console.error("[TASKS]", error);
     return new NextResponse("Internal Error", { status: 500 });

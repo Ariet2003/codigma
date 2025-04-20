@@ -27,16 +27,22 @@ export async function GET(req: Request) {
 
     // Получаем количество решенных задач по сложности
     const solvedByDifficulty = await prisma.$queryRaw`
-      SELECT 
-        t.difficulty,
-        COUNT(DISTINCT t.id) as solved_count
-      FROM "Task" t
-      INNER JOIN (
+      WITH UserSolvedTasks AS (
         SELECT DISTINCT "taskId"
         FROM "UserTaskSubmission"
         WHERE "userId" = ${session.user.id}
         AND status = 'ACCEPTED'
-      ) solved_tasks ON t.id = solved_tasks."taskId"
+      )
+      SELECT 
+        t.difficulty,
+        COUNT(DISTINCT ust."taskId") as solved_count,
+        (
+          SELECT COUNT(DISTINCT t2.id)
+          FROM "Task" t2
+          WHERE t2.difficulty = t.difficulty
+        ) as total_count
+      FROM "Task" t
+      LEFT JOIN UserSolvedTasks ust ON t.id = ust."taskId"
       GROUP BY t.difficulty
     `;
 
@@ -44,7 +50,7 @@ export async function GET(req: Request) {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // Получаем все сабмиты за последние 30 дней
+    // Получаем все сабмиты за последние 30 дней с учетом уникальных решенных задач
     const submissions = await prisma.userTaskSubmission.findMany({
       where: {
         userId: session.user.id,
@@ -54,12 +60,17 @@ export async function GET(req: Request) {
       },
       select: {
         createdAt: true,
-        status: true
+        status: true,
+        taskId: true
+      },
+      orderBy: {
+        createdAt: 'asc'
       }
     });
 
     // Группируем сабмиты по дням в локальном времени
     const dailyStats = new Map();
+    const solvedTasks = new Set(); // Для отслеживания уникально решенных задач
     
     submissions.forEach(submission => {
       const date = new Date(submission.createdAt);
@@ -69,14 +80,20 @@ export async function GET(req: Request) {
         dailyStats.set(localDate, {
           correct: 0,
           incorrect: 0,
-          total: 0
+          total: 0,
+          uniqueSolved: 0
         });
       }
       
       const stats = dailyStats.get(localDate);
       stats.total += 1;
+      
       if (submission.status === 'ACCEPTED') {
         stats.correct += 1;
+        if (!solvedTasks.has(submission.taskId)) {
+          solvedTasks.add(submission.taskId);
+          stats.uniqueSolved += 1;
+        }
       } else {
         stats.incorrect += 1;
       }
@@ -85,7 +102,7 @@ export async function GET(req: Request) {
     // Преобразуем данные в нужный формат
     const stats = {
       total: 0,
-      tasksCompleted: user?.tasksCompleted || 0,
+      tasksCompleted: solvedTasks.size, // Используем реальное количество решенных задач
       byDifficulty: {
         easy: { total: 0, solved: 0 },
         medium: { total: 0, solved: 0 },
@@ -96,26 +113,22 @@ export async function GET(req: Request) {
         date,
         correct: data.correct,
         incorrect: data.incorrect,
-        total: data.total
+        total: data.total,
+        uniqueSolved: data.uniqueSolved
       }))
     };
 
-    // Заполняем общее количество задач по сложности
-    (tasksStats as any[]).forEach(stat => {
-      const difficulty = stat.difficulty.toLowerCase();
-      if (difficulty in stats.byDifficulty) {
-        const totalCount = Number(stat.total_count);
-        stats.byDifficulty[difficulty as keyof typeof stats.byDifficulty].total = totalCount;
-        stats.total += totalCount;
-      }
-    });
-
-    // Заполняем количество решенных задач по сложности
+    // Заполняем статистику по сложности
     (solvedByDifficulty as any[]).forEach(stat => {
       const difficulty = stat.difficulty.toLowerCase();
       if (difficulty in stats.byDifficulty) {
         const solvedCount = Number(stat.solved_count);
-        stats.byDifficulty[difficulty as keyof typeof stats.byDifficulty].solved = solvedCount;
+        const totalCount = Number(stat.total_count);
+        stats.byDifficulty[difficulty as keyof typeof stats.byDifficulty] = {
+          total: totalCount,
+          solved: solvedCount
+        };
+        stats.total += totalCount;
       }
     });
 

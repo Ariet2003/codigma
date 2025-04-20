@@ -46,13 +46,27 @@ export async function GET(request: Request) {
         })
       },
       include: {
-        _count: {
-          select: { participants: true }
-        },
         participants: {
-          where: { userId: session.user.id },
-          select: { userId: true }
-        }
+          where: {
+            userId: session.user.id,
+          },
+          select: {
+            id: true,
+            totalScore: true,
+            submissions: {
+              select: {
+                id: true,
+                status: true,
+                taskId: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            participants: true,
+          },
+        },
       },
       orderBy: {
         [sortBy]: order,
@@ -68,16 +82,29 @@ export async function GET(request: Request) {
     ]);
 
     // Форматируем данные для фронтенда
-    const formattedHackathons = hackathons.map(hackathon => ({
-      id: hackathon.id,
-      title: hackathon.title,
-      description: hackathon.description,
-      startDate: hackathon.startDate,
-      endDate: hackathon.endDate,
-      isOpen: hackathon.isOpen,
-      participantsCount: hackathon._count.participants,
-      isParticipating: hackathon.participants.length > 0
-    }));
+    const formattedHackathons = hackathons.map((hackathon) => {
+      const participant = hackathon.participants[0];
+      
+      // Создаем Set для хранения уникальных решенных задач
+      const uniqueSolvedTasks = new Set(
+        participant?.submissions
+          .filter(s => s.status === "ACCEPTED")
+          .map(s => s.taskId)
+      );
+
+      return {
+        id: hackathon.id,
+        title: hackathon.title,
+        description: hackathon.description,
+        startDate: hackathon.startDate,
+        endDate: hackathon.endDate,
+        isOpen: hackathon.isOpen,
+        participantsCount: hackathon._count.participants,
+        solvedTasksCount: uniqueSolvedTasks.size,
+        totalTasksCount: hackathon.tasks.length,
+        totalScore: participant?.totalScore || 0,
+      };
+    });
 
     return NextResponse.json({
       hackathons: formattedHackathons,

@@ -963,18 +963,22 @@ export default function CreateHackathon({ isEditing = false, hackathonData }: Cr
                     <>
                       <p>
                         Закрытый хакатон создан и готов принимать заявки на участие. 
-                        Вы можете управлять заявками в разделе "Хакатоны".
+                        Вы можете управлять заявками в разделе "Хакатоны". Поделитесь этим PIN-кодом с участниками:
                       </p>
                       <div className="flex items-center gap-2 p-2 bg-muted rounded-lg">
                         <Input 
                           readOnly 
-                          value={`${window.location.origin}/hackathons/${createdHackathonId}`}
-                          className="bg-transparent"
+                          value={createdHackathonId}
+                          className="bg-transparent text-center font-mono text-lg"
                         />
                         <Button
                           variant="outline"
                           size="icon"
-                          onClick={handleCopyLink}
+                          onClick={() => {
+                            navigator.clipboard.writeText(createdHackathonId);
+                            setIsLinkCopied(true);
+                            setTimeout(() => setIsLinkCopied(false), 2000);
+                          }}
                           className="shrink-0"
                         >
                           {isLinkCopied ? (

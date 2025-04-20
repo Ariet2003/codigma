@@ -1,53 +1,125 @@
+"use client";
+
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { notFound } from 'next/navigation';
+import { notFound, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Markdown from 'react-markdown';
-import { Code, Trophy, Clock, Info, ChevronLeft, CheckCircle2, XCircle } from 'lucide-react';
+import { Code, Trophy, Clock, Info, ChevronLeft, CheckCircle2, XCircle, ArrowLeft } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
-async function getTask(id: string) {
-  const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/tasks/${id}`, {
-    cache: 'no-store',
-  });
+async function getTask(taskId: string) {
+  try {
+    const response = await fetch(`/api/tasks/${taskId}`, {
+      cache: 'no-store',
+    });
 
-  if (!response.ok) {
-    if (response.status === 404) {
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null;
+      }
+      console.error('Error fetching task:', await response.text());
       return null;
     }
-    throw new Error('Failed to fetch task');
-  }
 
-  return response.json();
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching task:', error);
+    return null;
+  }
 }
 
 async function getTaskSubmissions(taskId: string, hackathonId: string) {
-  const response = await fetch(
-    `${process.env.NEXT_PUBLIC_APP_URL}/api/tasks/${taskId}/submissions?hackathonId=${hackathonId}`,
-    {
-      cache: 'no-store',
+  try {
+    const response = await fetch(
+      `/api/tasks/${taskId}/submissions?hackathonId=${hackathonId}`,
+      {
+        cache: 'no-store',
+      }
+    );
+
+    if (!response.ok) {
+      console.error('Error fetching submissions:', await response.text());
+      return {
+        avgExecutionTime: 0,
+        avgMemory: 0,
+        correctSolutions: 0,
+        wrongSolutions: 0,
+        totalSubmissions: 0
+      };
     }
-  );
 
-  if (!response.ok) {
-    throw new Error('Failed to fetch submissions');
+    return response.json();
+  } catch (error) {
+    console.error('Error fetching submissions:', error);
+    return {
+      avgExecutionTime: 0,
+      avgMemory: 0,
+      correctSolutions: 0,
+      wrongSolutions: 0,
+      totalSubmissions: 0
+    };
   }
-
-  return response.json();
 }
 
-export default async function TaskDetailsPage({
+export default function TaskDetailsPage({
   params,
 }: {
   params: { id: string; taskId: string };
 }) {
-  const task = await getTask(params.taskId);
-  if (!task) {
-    notFound();
+  const router = useRouter();
+  const [task, setTask] = useState<any>(null);
+  const [submissions, setSubmissions] = useState<any>({
+    avgExecutionTime: 0,
+    avgMemory: 0,
+    correctSolutions: 0,
+    wrongSolutions: 0,
+    totalSubmissions: 0
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const taskData = await getTask(params.taskId);
+        if (!taskData) {
+          return;
+        }
+        setTask(taskData);
+        const submissionsData = await getTaskSubmissions(params.taskId, params.id);
+        setSubmissions(submissionsData);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [params.taskId, params.id]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
   }
 
-  const submissions = await getTaskSubmissions(params.taskId, params.id);
+  if (!task) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <p className="text-muted-foreground">Задача не найдена</p>
+        <Button variant="outline" onClick={() => router.back()}>
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Назад
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
@@ -58,12 +130,10 @@ export default async function TaskDetailsPage({
             <Button
               variant="ghost"
               size="icon"
-              asChild
+              onClick={() => router.back()}
               className="hover:bg-transparent"
             >
-              <Link href={`/admin/hackathons/${params.id}/tasks`}>
-                <ChevronLeft className="w-6 h-6" />
-              </Link>
+              <ChevronLeft className="w-6 h-6" />
             </Button>
             <h1 className="text-3xl font-bold flex items-center gap-2">
               <Code className="w-8 h-8 text-[#4E7AFF]" />

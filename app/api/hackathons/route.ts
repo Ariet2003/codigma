@@ -70,102 +70,137 @@ export async function POST(req: Request) {
   }
 }
 
-export async function GET(req: Request) {
+export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return new NextResponse("Unauthorized", { status: 401 });
-    }
-
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(request.url);
+    
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "9");
     const search = searchParams.get("search") || "";
+    const status = searchParams.get("status");
     const sortBy = searchParams.get("sortBy") || "startDate";
     const order = searchParams.get("order") || "asc";
-    const status = searchParams.get("status") || "all";
-
-    const now = new Date();
+    
     const skip = (page - 1) * limit;
 
-    // Базовые условия для WHERE
-    let where: any = {
-      isOpen: true,
+    // Базовые условия для where
+    const where: any = {
+      OR: [
+        { title: { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+      ],
     };
 
-    if (search) {
-      where.OR = [
-        { title: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } }
-      ];
-    }
+    // Добавляем условие для закрытых хакатонов
+    where.OR = [
+      { isOpen: true }, // Открытые хакатоны показываем всем
+      {
+        // Закрытые хакатоны показываем только участникам
+        AND: [
+          { isOpen: false },
+          {
+            participants: {
+              some: {
+                userId: session?.user?.id
+              }
+            }
+          }
+        ]
+      }
+    ];
 
-    // Фильтрация по статусу
-    if (status === 'upcoming') {
+    // Добавляем фильтрацию по статусу
+    if (status) {
+      const now = new Date();
+      switch (status) {
+        case "upcoming":
           where.startDate = { gt: now };
-    } else if (status === 'ongoing') {
+          break;
+        case "ongoing":
           where.AND = [
             { startDate: { lte: now } },
-        { endDate: { gt: now } }
+            { endDate: { gte: now } }
           ];
-    } else if (status === 'completed') {
+          break;
+        case "completed":
           where.endDate = { lt: now };
+          break;
+      }
     }
 
-    // Настройка сортировки
-    let orderBy: any = {};
-    if (sortBy === 'participantsCount') {
-        orderBy = {
-          participants: {
-          _count: order
-        }
-        };
-    } else {
-      orderBy = {
-        [sortBy]: order
-      };
-    }
-
-    // Получаем хакатоны с информацией об участии пользователя
+    // Получаем общее количество хакатонов
+    const total = await prisma.hackathon.count({ where });
+    
+    // Получаем хакатоны с учетом пагинации и сортировки
     const hackathons = await prisma.hackathon.findMany({
       where,
       take: limit,
       skip,
-      orderBy,
+      orderBy: {
+        [sortBy]: order,
+      },
       include: {
         participants: {
-          where: {
-            userId: session.user.id
-          }
+          where: session?.user?.id ? { userId: session.user.id } : undefined,
+          select: {
+            id: true,
+            totalScore: true,
+            submissions: {
+              select: {
+                id: true,
+                status: true,
+                taskId: true,
+              },
+            },
+          },
         },
         _count: {
           select: {
-            participants: true
-          }
-        }
-      }
+            participants: true,
+          },
+        },
+      },
     });
 
-    // Получаем общее количество хакатонов для пагинации
-    const total = await prisma.hackathon.count({ where });
+    // Форматируем данные для ответа
+    const formattedHackathons = hackathons.map((hackathon) => {
+      const isParticipating = hackathon.participants.length > 0;
+      const participant = hackathon.participants[0];
+      
+      // Создаем Set для хранения уникальных решенных задач
+      const uniqueSolvedTasks = new Set(
+        participant?.submissions
+          .filter(s => s.status === "ACCEPTED")
+          .map(s => s.taskId)
+      );
 
-    // Форматируем данные для фронтенда
-    const formattedHackathons = hackathons.map(hackathon => ({
-      ...hackathon,
-      isParticipating: hackathon.participants.length > 0,
-      participantsCount: hackathon._count.participants,
-      participants: undefined,
-      _count: undefined
-    }));
+      return {
+        id: hackathon.id,
+        title: hackathon.title,
+        description: hackathon.description,
+        startDate: hackathon.startDate,
+        endDate: hackathon.endDate,
+        isOpen: hackathon.isOpen,
+        isParticipating,
+        participantsCount: hackathon._count.participants,
+        solvedTasksCount: isParticipating ? uniqueSolvedTasks.size : 0,
+        totalTasksCount: hackathon.tasks.length,
+        totalScore: isParticipating ? participant.totalScore : 0,
+      };
+    });
 
     return NextResponse.json({
       hackathons: formattedHackathons,
       total,
-      pages: Math.ceil(total / limit)
+      pages: Math.ceil(total / limit),
     });
   } catch (error) {
     console.error("[HACKATHONS]", error);
-    return new NextResponse("Internal Error", { status: 500 });
+    return NextResponse.json(
+      { error: "Произошла внутренняя ошибка сервера" },
+      { status: 500 }
+    );
   }
 }
 

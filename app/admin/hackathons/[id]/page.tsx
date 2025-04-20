@@ -7,10 +7,11 @@ import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Markdown from 'react-markdown';
-import { Calendar, Users, Trophy, Clock, Info, List, ChevronRight, CalendarCheck, CalendarCheck2Icon, CalendarHeart, CalendarRange, CalendarX, CalendarDaysIcon, FileText, BarChart } from 'lucide-react';
+import { Calendar, Users, Trophy, Clock, Info, List, ChevronRight, CalendarCheck, CalendarCheck2Icon, CalendarHeart, CalendarRange, CalendarX, CalendarDaysIcon, FileText, BarChart, Copy, Check } from 'lucide-react';
 import HackathonTimer from '@/components/ui/hackathon-timer';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 async function getHackathon(id: string) {
   const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/hackathons/${id}`, {
@@ -51,6 +52,7 @@ export default function HackathonDetailsPage({
   const [hackathon, setHackathon] = useState<any>(null);
   const [participants, setParticipants] = useState<any>({ participants: [] });
   const [loading, setLoading] = useState(true);
+  const [isCopied, setIsCopied] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -179,6 +181,33 @@ export default function HackathonDetailsPage({
                 <p className="font-medium">{participants.participants.length}</p>
               </div>
             </div>
+            {!hackathon.isOpen && isUpcoming && (
+              <div className="flex items-center gap-2">
+                <div className="flex-1 flex items-center gap-2 p-2 bg-muted rounded-lg">
+                  <div>
+                    <p className="text-sm text-muted-foreground">PIN хакатона</p>
+                    <p className="font-mono text-lg">{params.id}</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="ml-auto shrink-0"
+                    onClick={() => {
+                      navigator.clipboard.writeText(params.id);
+                      setIsCopied(true);
+                      setTimeout(() => setIsCopied(false), 2000);
+                      toast.success("PIN хакатона скопирован в буфер обмена");
+                    }}
+                  >
+                    {isCopied ? (
+                      <Check className="w-4 h-4 text-green-500" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

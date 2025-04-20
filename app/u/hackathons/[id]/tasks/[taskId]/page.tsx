@@ -205,25 +205,25 @@ export default function TaskPage({ params: { id, taskId } }: Props) {
   // Функция для получения кода из LocalStorage
   const getStoredCode = (taskId: string, language: string) => {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem(`hackathon_code_${taskId}_${language}`);
+    return localStorage.getItem(`hackathon_${hackathonId}_code_${taskId}_${language}`);
   };
 
   // Функция для сохранения кода в LocalStorage
   const storeCode = (taskId: string, language: string, code: string) => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(`hackathon_code_${taskId}_${language}`, code);
+    localStorage.setItem(`hackathon_${hackathonId}_code_${taskId}_${language}`, code);
   };
 
   // Функция для получения результатов из LocalStorage
   const getStoredResults = (taskId: string, language: string) => {
     if (typeof window === 'undefined') return null;
-    return localStorage.getItem(`hackathon_results_${taskId}_${language}`);
+    return localStorage.getItem(`hackathon_${hackathonId}_results_${taskId}_${language}`);
   };
 
   // Функция для сохранения результатов в LocalStorage
   const storeResults = (taskId: string, language: string, output: string) => {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(`hackathon_results_${taskId}_${language}`, output);
+    localStorage.setItem(`hackathon_${hackathonId}_results_${taskId}_${language}`, output);
   };
 
   const fetchSubmissions = async () => {
