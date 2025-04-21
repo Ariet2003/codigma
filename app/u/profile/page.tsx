@@ -27,13 +27,25 @@ import {
   Loader2,
   ChevronDown,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import { useDropzone } from "react-dropzone";
 
 interface ActivityData {
   date: string;
@@ -77,11 +89,11 @@ interface ProfileData {
 }
 
 function getActivityColor(count: number): string {
-  if (count === 0) return 'bg-[#0A1526]';
-  if (count <= 2) return 'bg-[#0e4429]';
-  if (count <= 4) return 'bg-[#006d32]';
-  if (count <= 6) return 'bg-[#26a641]';
-  return 'bg-[#39d353]';
+  if (count === 0) return 'dark:bg-[#0A1526] bg-[#ebedf0]';
+  if (count <= 2) return 'dark:bg-[#0e4429] bg-[#9be9a8]';
+  if (count <= 4) return 'dark:bg-[#006d32] bg-[#40c463]';
+  if (count <= 6) return 'dark:bg-[#26a641] bg-[#30a14e]';
+  return 'dark:bg-[#39d353] bg-[#216e39]';
 }
 
 function formatDate(date: string): string {
@@ -113,10 +125,52 @@ function getWeekNumber(date: Date) {
 }
 
 export default function ProfilePage() {
-  const { data: session } = useSession();
+  const { data: session, update: updateSession } = useSession();
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    image: ""
+  });
+  const [isUploading, setIsUploading] = useState(false);
+
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (!file) return;
+
+    try {
+      setIsUploading(true);
+      const formData = new FormData();
+      formData.append("image", file);
+
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error("Upload failed");
+
+      const data = await response.json();
+      setEditForm(prev => ({ ...prev, image: data.url }));
+      toast.success("Изображение успешно загружено");
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast.error("Ошибка при загрузке изображения");
+    } finally {
+      setIsUploading(false);
+    }
+  }, []);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'image/*': ['.jpeg', '.jpg', '.png', '.gif']
+    },
+    maxSize: 5242880, // 5MB
+    multiple: false
+  });
 
   useEffect(() => {
     const fetchProfileData = async () => {
@@ -124,6 +178,7 @@ export default function ProfilePage() {
         const response = await fetch(`/api/profile?year=${selectedYear}`);
         if (!response.ok) throw new Error('Failed to fetch profile data');
         const data = await response.json();
+        console.log('Loaded profile data:', data);
         setProfileData(data);
       } catch (error) {
         console.error('Error fetching profile data:', error);
@@ -136,6 +191,66 @@ export default function ProfilePage() {
       fetchProfileData();
     }
   }, [session, selectedYear]);
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const response = await fetch('/api/profile/update', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: editForm.name || undefined,
+          image: editForm.image || undefined
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to update profile');
+
+      const updatedUser = await response.json();
+      console.log('Updated user data:', updatedUser);
+      
+      // Обновляем сессию с новыми данными
+      await updateSession({
+        ...session,
+        user: {
+          ...session?.user,
+          name: updatedUser.name,
+          image: updatedUser.image,
+        },
+      });
+
+      // Принудительно обновляем данные профиля
+      if (profileData) {
+        const newProfileData = {
+          ...profileData,
+          user: {
+            ...profileData.user,
+            name: updatedUser.name,
+            image: updatedUser.image,
+          }
+        };
+        console.log('New profile data:', newProfileData);
+        setProfileData(newProfileData);
+      }
+
+      setIsEditing(false);
+      setEditForm({ name: "", image: "" });
+      toast.success('Профиль успешно обновлен');
+      
+      // Перезагружаем данные профиля
+      const refreshResponse = await fetch(`/api/profile?year=${selectedYear}`);
+      if (refreshResponse.ok) {
+        const refreshedData = await refreshResponse.json();
+        console.log('Refreshed profile data:', refreshedData);
+        setProfileData(refreshedData);
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast.error('Не удалось обновить профиль');
+    }
+  };
 
   const renderActivityGrid = () => {
     if (!profileData) return null;
@@ -231,19 +346,103 @@ export default function ProfilePage() {
         <div className="col-span-12 md:col-span-3 space-y-6">
           <Card className="p-6 space-y-6">
             <div className="flex flex-col items-center text-center space-y-4">
-              <div className="h-24 w-24 rounded-full bg-primary/10 flex items-center justify-center">
-                <span className="text-4xl font-bold text-primary">
-                  {session?.user?.name?.[0]?.toUpperCase() || "U"}
-                </span>
+              <div className="relative h-24 w-24 rounded-full overflow-hidden bg-primary/10">
+                {profileData?.user?.image ? (
+                  <img
+                    src={profileData.user.image}
+                    alt={profileData.user.name || "Profile"}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="absolute inset-0 flex items-center justify-center text-4xl font-bold text-primary">
+                    {profileData?.user?.name?.[0]?.toUpperCase() || "U"}
+                  </span>
+                )}
               </div>
               <div className="space-y-2">
-                <h2 className="text-xl font-bold">{session?.user?.name || "Пользователь"}</h2>
-                <p className="text-sm text-muted-foreground">{session?.user?.email}</p>
+                <h2 className="text-xl font-bold">{profileData?.user?.name || "Пользователь"}</h2>
+                <p className="text-sm text-muted-foreground">{profileData?.user?.email}</p>
               </div>
-              <Button variant="outline" className="w-full gap-2">
-                <Edit className="h-4 w-4" />
-                Редактировать профиль
-              </Button>
+              <Dialog open={isEditing} onOpenChange={(open) => {
+                setIsEditing(open);
+                if (!open) {
+                  setEditForm({ name: "", image: "" });
+                }
+              }}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="w-full gap-2">
+                    <Edit className="h-4 w-4" />
+                    Редактировать профиль
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Редактировать профиль</DialogTitle>
+                    <DialogDescription>
+                      Измените ваше имя и изображение профиля
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleEditSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Имя</Label>
+                      <Input
+                        id="name"
+                        value={editForm.name}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Введите имя"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Изображение профиля</Label>
+                      <div
+                        {...getRootProps()}
+                        className={`border-2 border-dashed rounded-lg p-6 transition-colors cursor-pointer
+                          ${isDragActive ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'}
+                          ${isUploading ? 'pointer-events-none opacity-50' : ''}
+                        `}
+                      >
+                        <input {...getInputProps()} />
+                        <div className="flex flex-col items-center gap-2 text-center">
+                          {isUploading ? (
+                            <>
+                              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                              <p className="text-sm text-muted-foreground">Загрузка изображения...</p>
+                            </>
+                          ) : (
+                            <>
+                              {editForm.image ? (
+                                <div className="relative w-20 h-20 mb-2">
+                                  <img
+                                    src={editForm.image}
+                                    alt="Preview"
+                                    className="w-full h-full object-cover rounded-full"
+                                  />
+                                </div>
+                              ) : null}
+                              <p className="text-sm text-muted-foreground">
+                                {isDragActive
+                                  ? "Отпустите файл здесь"
+                                  : "Перетащите изображение сюда или кликните для выбора"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                PNG, JPG или GIF (макс. 5MB)
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>
+                        Отмена
+                      </Button>
+                      <Button type="submit" disabled={isUploading}>
+                        Сохранить
+                      </Button>
+                    </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
             </div>
 
             <div className="space-y-4">
@@ -253,7 +452,7 @@ export default function ProfilePage() {
                     <Trophy className="h-4 w-4" />
                     Баллы
                   </span>
-                  <span className="font-medium">{stats.рейтинг}</span>
+                  <span className="font-medium">{Number(stats.рейтинг).toFixed(3)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground flex items-center gap-2">
@@ -454,11 +653,11 @@ export default function ProfilePage() {
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span>Меньше</span>
                     <div className="flex gap-1">
-                      <div className="w-3 h-3 rounded-sm bg-[#1E293BCC]" />
-                      <div className="w-3 h-3 rounded-sm bg-[#0e4429]" />
-                      <div className="w-3 h-3 rounded-sm bg-[#006d32]" />
-                      <div className="w-3 h-3 rounded-sm bg-[#26a641]" />
-                      <div className="w-3 h-3 rounded-sm bg-[#39d353]" />
+                      <div className="w-3 h-3 rounded-sm dark:bg-[#1E293BCC] bg-[#ebedf0]" />
+                      <div className="w-3 h-3 rounded-sm dark:bg-[#0e4429] bg-[#9be9a8]" />
+                      <div className="w-3 h-3 rounded-sm dark:bg-[#006d32] bg-[#40c463]" />
+                      <div className="w-3 h-3 rounded-sm dark:bg-[#26a641] bg-[#30a14e]" />
+                      <div className="w-3 h-3 rounded-sm dark:bg-[#39d353] bg-[#216e39]" />
                     </div>
                     <span>Больше</span>
                   </div>

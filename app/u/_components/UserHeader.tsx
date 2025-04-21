@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useSession, signOut } from "next-auth/react";
 import Image from "next/image";
+import { useEffect, useState } from "react";
 
 const navigation = [
   {
@@ -43,6 +44,25 @@ const navigation = [
 function UserNav() {
   const { data: session } = useSession();
   const router = useRouter();
+  const [userData, setUserData] = useState<{ name?: string | null; image?: string | null; } | null>(null);
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const response = await fetch('/api/profile');
+        if (response.ok) {
+          const data = await response.json();
+          setUserData(data.user);
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+      }
+    };
+
+    if (session?.user) {
+      fetchUserData();
+    }
+  }, [session]);
 
   const handleSignOut = async () => {
     await signOut({ redirect: false });
@@ -60,9 +80,9 @@ function UserNav() {
               className="relative h-10 w-10 rounded-full hover:bg-primary/15 transition-all duration-300 hover:scale-105 hover:shadow-[0_3px_12px_-2px_rgba(0,0,0,0.25)]"
             >
               <Avatar className="h-10 w-10 ring-2 ring-primary/20 transition-all duration-300 hover:ring-primary/40 hover:ring-[3px]">
-                <AvatarImage src={session.user.image || undefined} />
+                <AvatarImage src={userData?.image || undefined} />
                 <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                  {session.user.name?.charAt(0).toUpperCase() || "U"}
+                  {userData?.name?.charAt(0).toUpperCase() || "U"}
                 </AvatarFallback>
               </Avatar>
             </Button>

@@ -243,8 +243,13 @@ export async function GET(req: NextRequest) {
 
     const response = {
       user: {
-        ...user,
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        image: user.image,
         totalScore: Number(user.totalScore),
+        tasksCompleted: user.tasksCompleted,
+        hackathonsParticipated: user.hackathonsParticipated,
       },
       stats: formattedStats,
       submissions: recentSubmissions.map(sub => ({
