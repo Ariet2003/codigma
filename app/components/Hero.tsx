@@ -1,6 +1,11 @@
+"use client";
+
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 
 export function Hero() {
+  const { data: session } = useSession();
+
   return (
     <section className="bg-white dark:bg-[#020817] m-4 md:m-0 py-4 md:py-6">
       <div className="mx-auto px-4 md:px-6 flex flex-col justify-center items-center gap-0">
@@ -28,7 +33,7 @@ export function Hero() {
           </div>
           <div className="flex justify-center flex-col md:flex-row gap-4 mt-4">
             <Link
-              href="/auth/signin"
+              href={session ? "/u/profile" : "/auth/signin"}
               className="px-6 py-3 rounded-lg bg-[#4E7AFF] text-white font-medium transition-all hover:bg-[#4E7AFF]/90 hover:scale-105"
             >
               Начать решать{" "}
