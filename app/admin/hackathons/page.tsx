@@ -74,12 +74,12 @@ export default function HackathonsPage() {
     setIsLoading(true);
     try {
       const response = await fetch(
-        `/api/hackathons?page=${currentPage}&limit=10&sort=${sortField}&order=${sortOrder}&status=${statusFilter}&type=${typeFilter}&search=${searchQuery}`
+        `/api/hackathons?page=${currentPage}&limit=10&sortBy=${sortField}&order=${sortOrder}&status=${statusFilter}&type=${typeFilter}&search=${searchQuery}`
       );
       if (!response.ok) throw new Error("Ошибка при загрузке хакатонов");
       const data = await response.json();
       setHackathons(data.hackathons);
-      setTotalPages(data.totalPages);
+      setTotalPages(data.pages);
     } catch (error) {
       console.error("Ошибка при загрузке хакатонов:", error);
       toast({

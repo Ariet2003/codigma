@@ -74,6 +74,7 @@ export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     const { searchParams } = new URL(request.url);
+    const isAdminRoute = request.headers.get('referer')?.includes('/admin/');
     
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "9");
@@ -81,50 +82,68 @@ export async function GET(request: Request) {
     const status = searchParams.get("status");
     const sortBy = searchParams.get("sortBy") || "startDate";
     const order = searchParams.get("order") || "asc";
+    const type = searchParams.get("type");
     
     const skip = (page - 1) * limit;
 
     // Базовые условия для where
     const where: any = {
-      OR: [
-        { title: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-      ],
+      AND: [
+        {
+          OR: [
+            { title: { contains: search, mode: 'insensitive' } },
+            { description: { contains: search, mode: 'insensitive' } },
+          ]
+        }
+      ]
     };
 
-    // Добавляем условие для закрытых хакатонов
-    where.OR = [
-      { isOpen: true }, // Открытые хакатоны показываем всем
-      {
-        // Закрытые хакатоны показываем только участникам
-        AND: [
-          { isOpen: false },
+    // Добавляем условие для типа хакатона
+    if (type && type !== 'all') {
+      where.AND.push({ isOpen: type === 'open' });
+    }
+
+    // Разная логика для админа и пользователя
+    if (!isAdminRoute) {
+      // Для обычных пользователей показываем только открытые хакатоны
+      // и закрытые, в которых они участвуют
+      where.AND.push({
+        OR: [
+          { isOpen: true },
           {
-            participants: {
-              some: {
-                userId: session?.user?.id
+            AND: [
+              { isOpen: false },
+              {
+                participants: {
+                  some: {
+                    userId: session?.user?.id
+                  }
+                }
               }
-            }
+            ]
           }
         ]
-      }
-    ];
+      });
+    }
 
     // Добавляем фильтрацию по статусу
-    if (status) {
+    if (status && status !== 'all') {
       const now = new Date();
       switch (status) {
         case "upcoming":
-          where.startDate = { gt: now };
+          where.AND.push({ startDate: { gt: now } });
           break;
+        case "active":
         case "ongoing":
-          where.AND = [
-            { startDate: { lte: now } },
-            { endDate: { gte: now } }
-          ];
+          where.AND.push({ 
+            AND: [
+              { startDate: { lte: now } },
+              { endDate: { gt: now } }
+            ]
+          });
           break;
         case "completed":
-          where.endDate = { lt: now };
+          where.AND.push({ endDate: { lte: now } });
           break;
       }
     }
@@ -185,7 +204,7 @@ export async function GET(request: Request) {
         isParticipating,
         participantsCount: hackathon._count.participants,
         solvedTasksCount: isParticipating ? uniqueSolvedTasks.size : 0,
-        totalTasksCount: hackathon.tasks.length,
+        totalTasksCount: Array.isArray(hackathon.tasks) ? hackathon.tasks.length : 0,
         totalScore: isParticipating ? participant.totalScore : 0,
       };
     });
