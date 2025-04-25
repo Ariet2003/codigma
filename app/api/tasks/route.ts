@@ -55,6 +55,11 @@ export async function GET(req: Request) {
             status: true,
             userId: true
           }
+        },
+        testCases: {
+          select: {
+            id: true
+          }
         }
       }
     });
@@ -142,6 +147,7 @@ export async function GET(req: Request) {
           isSolved: solvedTaskIds.has(task.id),
           uniqueAcceptedCount: uniqueAcceptedUsers.size,
           attempts: task.userSubmissions.length,
+          testCount: task.testCases.length,
           userSubmissions: undefined // Удаляем ненужные данные из ответа
         };
       });

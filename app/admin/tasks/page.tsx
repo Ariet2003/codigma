@@ -46,8 +46,8 @@ type Task = {
   functionName: string;
   inputParams: any;
   outputParams: any;
-  test_count: number;
-  created_at: string;
+  testCount: number;
+  createdAt: string;
   updatedAt: string;
 };
 
@@ -148,7 +148,7 @@ export default function TasksPage() {
     try {
       const date = new Date(dateString);
       if (isNaN(date.getTime())) return "—";
-      return format(date, "dd MMM yyyy", { locale: ru });
+      return format(date, "dd MMM yyyy HH:mm", { locale: ru });
     } catch (error) {
       console.error("Error formatting date:", error);
       return "—";
@@ -203,8 +203,8 @@ export default function TasksPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="updatedAt">По дате обновления</SelectItem>
-              <SelectItem value="created_at">По дате создания</SelectItem>
-              <SelectItem value="test_count">По количеству тестов</SelectItem>
+              <SelectItem value="createdAt">По дате создания</SelectItem>
+              <SelectItem value="testCount">По количеству тестов</SelectItem>
               <SelectItem value="title">По названию</SelectItem>
               <SelectItem value="difficulty">По сложности</SelectItem>
             </SelectContent>
@@ -220,74 +220,65 @@ export default function TasksPage() {
         </div>
       </div>
 
-      <div className="border rounded-lg">
+      <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Название</TableHead>
               <TableHead>Сложность</TableHead>
-              <TableHead className="text-center">Тесты</TableHead>
+              <TableHead>Тесты</TableHead>
               <TableHead>Создано</TableHead>
               <TableHead>Обновлено</TableHead>
-              <TableHead className="text-right">Действия</TableHead>
+              <TableHead>Действия</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-10">
-                  Загрузка...
+                <TableCell colSpan={6} className="text-center py-8">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    Загрузка...
+                  </div>
                 </TableCell>
               </TableRow>
             ) : tasks.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-10">
+                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                   Задачи не найдены
                 </TableCell>
               </TableRow>
             ) : (
               tasks.map((task) => (
-                <TableRow 
-                  key={task.id}
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => router.push(`/admin/tasks/${task.id}`)}
-                >
+                <TableRow key={task.id}>
                   <TableCell className="font-medium">{task.title}</TableCell>
                   <TableCell>
                     <span className={getDifficultyColor(task.difficulty)}>
                       {getDifficultyLabel(task.difficulty)}
                     </span>
                   </TableCell>
-                  <TableCell className="text-center">{task.test_count}</TableCell>
+                  <TableCell>{task.testCount || 0}</TableCell>
+                  <TableCell>{formatDate(task.createdAt)}</TableCell>
+                  <TableCell>{formatDate(task.updatedAt)}</TableCell>
                   <TableCell>
-                    {formatDate(task.created_at)}
-                  </TableCell>
-                  <TableCell>
-                    {formatDate(task.updatedAt)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center gap-2">
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push("/admin/tasks/" + task.id + "/edit");
-                        }}
+                        onClick={() => router.push(`/admin/tasks/edit/${task.id}`)}
                       >
-                        <Pencil className="h-4 w-4" />
+                        <Pencil className="w-4 h-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                        onClick={(e) => {
-                          e.stopPropagation();
+                        onClick={() => {
                           setTaskToDelete(task.id);
                           setShowDeleteDialog(true);
                         }}
+                        className="text-red-500 hover:text-red-600"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
                   </TableCell>
