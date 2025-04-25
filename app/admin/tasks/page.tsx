@@ -265,7 +265,7 @@ export default function TasksPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => router.push(`/admin/tasks/edit/${task.id}`)}
+                        onClick={() => router.push(`/admin/tasks/${task.id}/edit`)}
                       >
                         <Pencil className="w-4 h-4" />
                       </Button>

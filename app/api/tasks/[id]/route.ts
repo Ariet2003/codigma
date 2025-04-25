@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import prisma from "@/lib/prisma";
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
@@ -258,8 +258,16 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    // Сначала удаляем все связанные записи
+    // Удаляем все связанные записи в транзакции
     await prisma.$transaction([
+      // Удаляем отправки решений пользователей
+      prisma.userTaskSubmission.deleteMany({
+        where: { taskId: params.id },
+      }),
+      // Удаляем отправки решений участников хакатона
+      prisma.taskSubmission.deleteMany({
+        where: { taskId: params.id },
+      }),
       // Удаляем тестовые случаи
       prisma.testCase.deleteMany({
         where: { taskId: params.id },
