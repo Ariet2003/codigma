@@ -30,7 +30,11 @@ import {
   Mail,
   User,
   Search,
-  Swords
+  Swords,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -43,6 +47,13 @@ interface User {
   hackathonsParticipated: number;
 }
 
+interface PaginationData {
+  currentPage: number;
+  totalPages: number;
+  totalUsers: number;
+  pageSize: number;
+}
+
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
@@ -52,31 +63,84 @@ export default function UsersPage() {
   const [newName, setNewName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [pagination, setPagination] = useState<PaginationData>({
+    currentPage: 1,
+    totalPages: 1,
+    totalUsers: 0,
+    pageSize: 100
+  });
 
   useEffect(() => {
     fetchUsers();
-  }, []);
-
-  useEffect(() => {
-    const query = searchQuery.toLowerCase();
-    const filtered = users.filter(user => 
-      (user.name?.toLowerCase().includes(query) || false) || 
-      (user.email?.toLowerCase().includes(query) || false)
-    );
-    setFilteredUsers(filtered);
-  }, [searchQuery, users]);
+  }, [pagination.currentPage]);
 
   const fetchUsers = async () => {
     try {
       const response = await fetch('/api/users');
       if (!response.ok) throw new Error('Ошибка загрузки данных');
       const data = await response.json();
+      
       setUsers(data);
-      setFilteredUsers(data);
+      updateFilteredUsers(data, searchQuery, pagination.currentPage, pagination.pageSize);
+
+      // Обновляем пагинацию
+      const totalUsers = data.length;
+      const totalPages = Math.ceil(totalUsers / pagination.pageSize);
+      setPagination(prev => ({
+        ...prev,
+        totalPages,
+        totalUsers,
+      }));
     } catch (error) {
       console.error('Error fetching users:', error);
       toast.error('Ошибка при загрузке пользователей');
     }
+  };
+
+  // Вспомогательная функция для обновления отфильтрованных пользователей
+  const updateFilteredUsers = (allUsers: User[], query: string, page: number, pageSize: number) => {
+    let filtered = allUsers;
+    
+    // Сначала применяем поиск
+    if (query) {
+      const lowercaseQuery = query.toLowerCase();
+      filtered = allUsers.filter(user => 
+        (user.name?.toLowerCase().includes(lowercaseQuery) || false) || 
+        (user.email?.toLowerCase().includes(lowercaseQuery) || false)
+      );
+    }
+
+    // Затем применяем пагинацию
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    setFilteredUsers(filtered.slice(startIndex, endIndex));
+
+    // Обновляем пагинацию если есть поиск
+    if (query) {
+      const totalFilteredUsers = filtered.length;
+      const totalFilteredPages = Math.ceil(totalFilteredUsers / pageSize);
+      setPagination(prev => ({
+        ...prev,
+        totalPages: totalFilteredPages,
+        totalUsers: totalFilteredUsers,
+      }));
+    }
+  };
+
+  // Эффект для обновления при изменении поиска или страницы
+  useEffect(() => {
+    if (users.length > 0) {
+      updateFilteredUsers(users, searchQuery, pagination.currentPage, pagination.pageSize);
+    }
+  }, [searchQuery, pagination.currentPage, users]);
+
+  const handlePageChange = (newPage: number) => {
+    setPagination(prev => ({ ...prev, currentPage: newPage }));
+  };
+
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+    setPagination(prev => ({ ...prev, currentPage: 1 })); // Сброс на первую страницу при поиске
   };
 
   const handleEdit = (user: User) => {
@@ -138,6 +202,68 @@ export default function UsersPage() {
     }
   };
 
+  const PaginationControls = () => {
+    const startItem = users.length > 0 ? ((pagination.currentPage - 1) * pagination.pageSize) + 1 : 0;
+    const endItem = Math.min(startItem + users.length - 1, pagination.totalUsers);
+
+    return (
+      <div className="flex items-center justify-between px-2 py-4">
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-muted-foreground">
+            {users.length > 0 ? (
+              `Показано ${startItem} - ${endItem} из ${pagination.totalUsers}`
+            ) : (
+              "Нет данных"
+            )}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => handlePageChange(1)}
+            disabled={pagination.currentPage === 1}
+            className="h-8 w-8"
+          >
+            <ChevronsLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => handlePageChange(pagination.currentPage - 1)}
+            disabled={pagination.currentPage === 1}
+            className="h-8 w-8"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">
+              Страница {pagination.currentPage} из {pagination.totalPages}
+            </span>
+          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => handlePageChange(pagination.currentPage + 1)}
+            disabled={pagination.currentPage === pagination.totalPages}
+            className="h-8 w-8"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => handlePageChange(pagination.totalPages)}
+            disabled={pagination.currentPage === pagination.totalPages}
+            className="h-8 w-8"
+          >
+            <ChevronsRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
@@ -152,14 +278,14 @@ export default function UsersPage() {
           <Input
             placeholder="Поиск по ФИО или email..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={handleSearch}
             className="pl-10"
           />
         </div>
       </div>
 
       <Card>
-        <CardContent className="p-6">
+        <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
@@ -240,6 +366,7 @@ export default function UsersPage() {
               )}
             </TableBody>
           </Table>
+          <PaginationControls />
         </CardContent>
       </Card>
 

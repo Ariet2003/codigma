@@ -39,10 +39,10 @@ interface User {
 }
 
 interface PaginationData {
-  total: number;
-  pageSize: number;
   currentPage: number;
   totalPages: number;
+  totalUsers: number;
+  pageSize: number;
 }
 
 export default function RatingPage() {
@@ -50,10 +50,10 @@ export default function RatingPage() {
   const [sortBy, setSortBy] = useState<SortType>('score');
   const [order, setOrder] = useState('desc');
   const [pagination, setPagination] = useState<PaginationData>({
-    total: 0,
-    pageSize: 200,
     currentPage: 1,
-    totalPages: 1
+    totalPages: 1,
+    totalUsers: 0,
+    pageSize: 10
   });
 
   useEffect(() => {
@@ -67,8 +67,15 @@ export default function RatingPage() {
       );
       if (!response.ok) throw new Error('Ошибка загрузки данных');
       const data = await response.json();
+      console.log('Received data:', data);
       setUsers(data.users);
-      setPagination(data.pagination);
+      setPagination(prev => ({
+        ...prev,
+        currentPage: data.pagination.currentPage,
+        totalPages: data.pagination.totalPages,
+        totalUsers: data.pagination.totalUsers,
+        pageSize: data.pagination.pageSize || 100
+      }));
     } catch (error) {
       console.error('Error fetching users:', error);
     }
@@ -131,58 +138,67 @@ export default function RatingPage() {
     }
   };
 
-  const PaginationControls = () => (
-    <div className="flex items-center justify-between px-2 py-4">
-      <div className="flex items-center gap-2">
-        <p className="text-sm text-muted-foreground">
-          Показано {((pagination.currentPage - 1) * pagination.pageSize) + 1} - {Math.min(pagination.currentPage * pagination.pageSize, pagination.total)} из {pagination.total}
-        </p>
-      </div>
-      <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => handlePageChange(1)}
-          disabled={pagination.currentPage === 1}
-          className="h-8 w-8"
-        >
-          <ChevronsLeft className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => handlePageChange(pagination.currentPage - 1)}
-          disabled={pagination.currentPage === 1}
-          className="h-8 w-8"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </Button>
+  const PaginationControls = () => {
+    const startItem = users.length > 0 ? ((pagination.currentPage - 1) * pagination.pageSize) + 1 : 0;
+    const endItem = Math.min(startItem + users.length - 1, pagination.totalUsers);
+
+    return (
+      <div className="flex items-center justify-between px-2 py-4">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">
-            Страница {pagination.currentPage} из {pagination.totalPages}
-          </span>
+          <p className="text-sm text-muted-foreground">
+            {users.length > 0 ? (
+              `Показано ${startItem} - ${endItem} из ${pagination.totalUsers}`
+            ) : (
+              "Нет данных"
+            )}
+          </p>
         </div>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => handlePageChange(pagination.currentPage + 1)}
-          disabled={pagination.currentPage === pagination.totalPages}
-          className="h-8 w-8"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => handlePageChange(pagination.totalPages)}
-          disabled={pagination.currentPage === pagination.totalPages}
-          className="h-8 w-8"
-        >
-          <ChevronsRight className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => handlePageChange(1)}
+            disabled={pagination.currentPage === 1}
+            className="h-8 w-8"
+          >
+            <ChevronsLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => handlePageChange(pagination.currentPage - 1)}
+            disabled={pagination.currentPage === 1}
+            className="h-8 w-8"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">
+              Страница {pagination.currentPage} из {pagination.totalPages}
+            </span>
+          </div>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => handlePageChange(pagination.currentPage + 1)}
+            disabled={pagination.currentPage === pagination.totalPages}
+            className="h-8 w-8"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => handlePageChange(pagination.totalPages)}
+            disabled={pagination.currentPage === pagination.totalPages}
+            className="h-8 w-8"
+          >
+            <ChevronsRight className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="p-6 space-y-6">
