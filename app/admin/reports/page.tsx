@@ -318,9 +318,8 @@ export default function ReportsPage() {
   };
 
   const formatTime = (ms: number) => {
-    if (!ms) return '0 мс';
-    if (ms < 1000) return `${ms} мс`;
-    return `${ms} мс (${(ms / 1000).toFixed(2)} с)`;
+    if (ms < 1) return '< 1 мс';
+    return `${(ms).toFixed(3)} мс`;
   };
 
   const getRequestStatusIcon = (status: string) => {

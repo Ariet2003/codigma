@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Table,
   TableBody,
@@ -16,10 +17,8 @@ import {
   Medal,
   Star,
   ArrowUpDown,
-  Mail,
   Code,
   Users,
-  Hash,
   TrendingUp,
   ChevronLeft,
   ChevronRight,
@@ -27,15 +26,16 @@ import {
   ChevronsRight
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import type { SortType } from "@/app/api/rating/route";
 
 interface User {
   id: string;
   name: string | null;
-  email: string | null;
+  image: string | null;
   totalScore: number;
   tasksCompleted: number;
   hackathonsParticipated: number;
-  totalSubmissions: number;
+  position: number;
 }
 
 interface PaginationData {
@@ -47,7 +47,7 @@ interface PaginationData {
 
 export default function RatingPage() {
   const [users, setUsers] = useState<User[]>([]);
-  const [sortBy, setSortBy] = useState('totalScore');
+  const [sortBy, setSortBy] = useState<SortType>('score');
   const [order, setOrder] = useState('desc');
   const [pagination, setPagination] = useState<PaginationData>({
     total: 0,
@@ -63,7 +63,7 @@ export default function RatingPage() {
   const fetchUsers = async () => {
     try {
       const response = await fetch(
-        `/api/rating?sortBy=${sortBy}&order=${order}&page=${pagination.currentPage}`
+        `/api/rating?page=${pagination.currentPage}&sortBy=${sortBy}`
       );
       if (!response.ok) throw new Error('Ошибка загрузки данных');
       const data = await response.json();
@@ -75,12 +75,21 @@ export default function RatingPage() {
   };
 
   const handleSort = (field: string) => {
-    if (field === sortBy) {
-      setOrder(order === 'desc' ? 'asc' : 'desc');
-    } else {
-      setSortBy(field);
-      setOrder('desc');
+    let newSortBy: SortType = 'score';
+    switch (field) {
+      case 'totalScore':
+        newSortBy = 'score';
+        break;
+      case 'tasksCompleted':
+        newSortBy = 'tasks';
+        break;
+      case 'hackathonsParticipated':
+        newSortBy = 'hackathons';
+        break;
+      default:
+        newSortBy = 'score';
     }
+    setSortBy(newSortBy);
   };
 
   const handlePageChange = (newPage: number) => {
@@ -98,24 +107,24 @@ export default function RatingPage() {
         <ArrowUpDown 
           className={cn(
             "h-4 w-4",
-            sortBy === field && (
-              order === 'asc' 
-                ? "text-[#4E7AFF] rotate-180 transition-transform" 
-                : "text-[#4E7AFF] transition-transform"
-            )
+            (field === 'totalScore' && sortBy === 'score') ||
+            (field === 'tasksCompleted' && sortBy === 'tasks') ||
+            (field === 'hackathonsParticipated' && sortBy === 'hackathons')
+              ? "text-[#4E7AFF]"
+              : ""
           )} 
         />
       </div>
     </Button>
   );
 
-  const getMedalColor = (index: number) => {
-    switch (index) {
-      case 0:
-        return 'text-yellow-500';
+  const getMedalColor = (position: number) => {
+    switch (position) {
       case 1:
-        return 'text-gray-400';
+        return 'text-yellow-500';
       case 2:
+        return 'text-gray-400';
+      case 3:
         return 'text-amber-600';
       default:
         return 'text-gray-300';
@@ -198,12 +207,6 @@ export default function RatingPage() {
                   </SortButton>
                 </TableHead>
                 <TableHead>
-                  <SortButton field="email">
-                    <Mail className="h-4 w-4 mr-1" />
-                    Email
-                  </SortButton>
-                </TableHead>
-                <TableHead>
                   <SortButton field="totalScore">
                     <Trophy className="h-4 w-4 mr-1" />
                     Общий балл
@@ -216,12 +219,6 @@ export default function RatingPage() {
                   </SortButton>
                 </TableHead>
                 <TableHead>
-                  <SortButton field="totalSubmissions">
-                    <Hash className="h-4 w-4 mr-1" />
-                    Отправок
-                  </SortButton>
-                </TableHead>
-                <TableHead>
                   <SortButton field="hackathonsParticipated">
                     <Users className="h-4 w-4 mr-1" />
                     Хакатонов
@@ -230,37 +227,41 @@ export default function RatingPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((user, index) => {
-                const globalIndex = (pagination.currentPage - 1) * pagination.pageSize + index;
-                return (
-                  <TableRow key={user.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        {globalIndex < 3 ? (
-                          <Medal className={`h-5 w-5 ${getMedalColor(globalIndex)}`} />
+              {users.map((user) => (
+                <TableRow key={user.id}>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2">
+                      {user.position <= 3 ? (
+                        <Medal className={`h-5 w-5 ${getMedalColor(user.position)}`} />
+                      ) : (
+                        user.position
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <Avatar className="w-8 h-8">
+                        {user.image ? (
+                          <AvatarImage src={user.image} />
                         ) : (
-                          globalIndex + 1
+                          <AvatarFallback>
+                            {user.name?.charAt(0)}
+                          </AvatarFallback>
                         )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span>{user.name || 'Без имени'}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Star className="h-4 w-4 text-yellow-500" />
-                        {user.totalScore.toFixed(1)}
-                      </div>
-                    </TableCell>
-                    <TableCell>{user.tasksCompleted}</TableCell>
-                    <TableCell>{user.totalSubmissions}</TableCell>
-                    <TableCell>{user.hackathonsParticipated}</TableCell>
-                  </TableRow>
-                );
-              })}
+                      </Avatar>
+                      <span>{user.name || 'Без имени'}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Star className="h-4 w-4 text-yellow-500" />
+                      {user.totalScore.toFixed(2)}
+                    </div>
+                  </TableCell>
+                  <TableCell>{user.tasksCompleted}</TableCell>
+                  <TableCell>{user.hackathonsParticipated}</TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
           <PaginationControls />
