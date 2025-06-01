@@ -3,12 +3,26 @@ import nodemailer from "nodemailer"
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_SERVER_HOST,
   port: Number(process.env.EMAIL_SERVER_PORT),
-  secure: false, // true для 465, false для других портов
+  secure: Number(process.env.EMAIL_SERVER_PORT) === 465,
   auth: {
     user: process.env.EMAIL_SERVER_USER,
     pass: process.env.EMAIL_SERVER_PASSWORD,
   },
+  tls: {
+    rejectUnauthorized: false,
+    ciphers: 'SSLv3'
+  },
+  debug: true // Включаем отладку для просмотра подробных логов
 })
+
+// Проверяем подключение при инициализации
+transporter.verify(function(error, success) {
+  if (error) {
+    console.error('Ошибка проверки транспорта:', error);
+  } else {
+    console.log('Сервер готов к отправке писем');
+  }
+});
 
 export const sendVerificationEmail = async (email: string, token: string) => {
   const confirmationLink = `${process.env.NEXT_PUBLIC_APP_URL}/auth/verify?email=${encodeURIComponent(email)}`;

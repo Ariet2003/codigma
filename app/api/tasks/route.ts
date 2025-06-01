@@ -45,7 +45,7 @@ export async function GET(req: Request) {
       where,
       take: limit,
       skip,
-      orderBy: {
+      orderBy: sortBy === 'solved' ? undefined : {
         [sortBy]: order
       },
       include: {
@@ -151,6 +151,15 @@ export async function GET(req: Request) {
           userSubmissions: undefined // Удаляем ненужные данные из ответа
         };
       });
+
+      // Сортировка по количеству решений, если выбрана
+      if (sortBy === 'solved') {
+        tasksWithStatus.sort((a, b) => {
+          return order === 'asc'
+            ? a.uniqueAcceptedCount - b.uniqueAcceptedCount
+            : b.uniqueAcceptedCount - a.uniqueAcceptedCount;
+        });
+      }
 
       // Применяем фильтр по статусу если он указан
       if (status && status !== 'all') {
